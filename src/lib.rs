@@ -248,7 +248,7 @@ impl NatsSetup {
     async fn create_account(&self, account: &AccountConfig) -> Result<String> {
         let store_path = self.store_dir.path().to_str().unwrap();
 
-        let mut args = vec![
+        let args = vec![
             "add".to_string(),
             "account".to_string(),
             "--name".to_string(),
