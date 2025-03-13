@@ -1,0 +1,68 @@
+// tests/hub_leaf.json
+{
+  "name": "generic-deployment",
+  "operator": {
+    "name": "test-operator",
+    "reuse_existing": false
+  },
+  "servers": [
+    {
+      "name": "central-hub",
+      "port": 4222,
+      "jetstream": {
+        "enabled": true,
+        "store_dir": "hub-output/jetstream",
+        "domain": "core"
+      },
+      "leafnodes": {
+        "port": 4248
+      },
+      "accounts": [
+        {
+          "name": "SYS",
+          "users": [{ "name": "admin" }],
+          "is_system_account": true,
+          "unique_name": "",
+          "max_connections": null,
+          "max_payload": null,
+          "exports": [],
+          "imports": []
+        },
+        {
+          "name": "app-service",
+          "users": [{ "name": "service-user" }],
+          "is_system_account": false,
+          "unique_name": "",
+          "max_connections": 5,
+          "max_payload": 1048576,
+          "exports": [
+            { "subject": "app.*.rpc.>", "is_service": false },
+            { "subject": "events.>", "is_service": false }
+          ],
+          "imports": []
+        }
+      ],
+      "output_dir": "hub-output"
+    },
+    {
+      "name": "edge-leaf",
+      "port": 4223,
+      "jetstream": {
+        "enabled": true,
+        "store_dir": "leaf-output/jetstream",
+        "domain": "core"
+      },
+      "leafnodes": {
+        "remotes": [
+          {
+            "url": "nats://localhost:4248",
+            "account": "app-service",
+            "credentials": "app-service-service-user.creds"
+          }
+        ]
+      },
+      "accounts": [],
+      "output_dir": "leaf-output"
+    }
+  ]
+}
