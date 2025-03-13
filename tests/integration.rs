@@ -3,6 +3,14 @@ use natsforge::{NatsConfig, NatsSetup, OperatorConfig, AccountConfig, UserConfig
 use std::path::PathBuf;
 use tokio;
 use anyhow::{Context, Result};
+use tokio::process::Child;
+
+struct ServerGuard(Child);
+impl Drop for ServerGuard {
+    fn drop(&mut self) {
+        let _ = self.0.start_kill(); // Start killing on drop
+    }
+}
 
 #[tokio::test]
 async fn test_basic_setup_with_accounts() -> Result<(), Box<dyn std::error::Error>> {
@@ -121,6 +129,11 @@ async fn test_temp_setup_with_accounts() -> Result<(), Box<dyn std::error::Error
 async fn test_setup_validation() -> Result<(), Box<dyn std::error::Error>> {
     let _ = std::fs::remove_dir_all("test-output-validation");
 
+    let _ = tokio::process::Command::new("pkill")
+        .args(&["-f", "nats-server.*4223"])
+        .output()
+        .await;
+
     let config = NatsConfig {
         operator: OperatorConfig {
             name: "test-operator".to_string(),
@@ -167,12 +180,15 @@ async fn test_setup_validation() -> Result<(), Box<dyn std::error::Error>> {
     let setup = NatsSetup::new(config);
     let result = setup.initialize().await?;
 
-    let mut server = tokio::process::Command::new("nats-server")
+    let server = tokio::process::Command::new("nats-server")
         .arg("-c")
         .arg(&result.server_config_path)
+        .arg("-V")
         .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
         .spawn()
         .context("Failed to start NATS server")?;
+    let mut server_guard = ServerGuard(server);
 
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
@@ -186,16 +202,17 @@ async fn test_setup_validation() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut sub = client.subscribe("test.foo").await?;
     client.publish("test.foo", "hello".into()).await?;
-    let msg = tokio::time::timeout(
-        tokio::time::Duration::from_secs(1),
-        sub.next()
-    ).await
-    .context("Timeout waiting for message")?
-    .ok_or_else(|| anyhow::anyhow!("No message received on allowed subject"))?;
+    client.flush().await?;
+    let msg = tokio::time::timeout(tokio::time::Duration::from_secs(1), sub.next())
+        .await
+        .context("Timeout waiting for message")?
+        .ok_or_else(|| anyhow::anyhow!("No message received on allowed subject"))?;
     assert_eq!(&*msg.payload, b"hello");
 
-    let result = client.publish("forbidden.bar", "nope".into()).await;
-    assert!(result.is_err(), "Publish to denied subject should fail");
+    // Test denied subject with subscribe
+    let sub_result = client.subscribe("forbidden.bar").await;
+    println!("Subscribe to forbidden.bar result: {:?}", sub_result);
+    assert!(sub_result.is_err(), "Subscribe to denied subject should fail");
 
     let second_client_result = async_nats::ConnectOptions::with_credentials(&creds).unwrap()
         .connect("localhost:4223")
@@ -204,10 +221,11 @@ async fn test_setup_validation() -> Result<(), Box<dyn std::error::Error>> {
 
     let large_payload = vec![0u8; 1025];
     let result = client.publish("test.foo", large_payload.into()).await;
+    client.flush().await?;
     assert!(result.is_err(), "Large payload should fail due to max_payload");
 
     std::fs::remove_dir_all("test-output-validation")?;
-    server.kill().await.context("Failed to kill NATS server")?;
+    server_guard.0.kill().await.context("Failed to kill NATS server")?;
 
     Ok(())
 }

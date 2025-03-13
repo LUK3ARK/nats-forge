@@ -224,12 +224,16 @@ impl NatsSetup {
             .context("Failed to run nsc init")?;
 
         if !output.status.success() {
+            println!("nsc init stdout: {}", String::from_utf8_lossy(&output.stdout));
+            println!("nsc init stderr: {}", String::from_utf8_lossy(&output.stderr));
             return Err(anyhow::anyhow!(
                 "nsc init failed: {}",
                 String::from_utf8_lossy(&output.stderr)
             ));
         }
+        println!("nsc init stdout: {}", String::from_utf8_lossy(&output.stdout));
 
+        // Corrected path from manual test
         let operator_jwt_path = self
             .store_dir
             .path()
@@ -244,7 +248,6 @@ impl NatsSetup {
     async fn create_account(&self, account: &AccountConfig) -> Result<String> {
         let store_path = self.store_dir.path().to_str().unwrap();
 
-        // Step 1: Add the account
         let mut args = vec![
             "add".to_string(),
             "account".to_string(),
@@ -254,6 +257,7 @@ impl NatsSetup {
             store_path.to_string(),
         ];
 
+        println!("nsc add account args: {:?}", args);
         let output = tokio::process::Command::new("nsc")
             .args(&args)
             .output()
@@ -261,13 +265,15 @@ impl NatsSetup {
             .context(format!("Failed to run nsc add account {}", account.unique_name))?;
 
         if !output.status.success() {
+            println!("nsc add account stdout: {}", String::from_utf8_lossy(&output.stdout));
+            println!("nsc add account stderr: {}", String::from_utf8_lossy(&output.stderr));
             return Err(anyhow::anyhow!(
                 "nsc add account failed: {}",
                 String::from_utf8_lossy(&output.stderr)
             ));
         }
 
-        // Step 2: Edit the account only if there are limits to set
+        // Edit account (unchanged)
         let mut edit_args = vec![
             "edit".to_string(),
             "account".to_string(),
@@ -305,7 +311,7 @@ impl NatsSetup {
             }
         }
 
-        // Handle exports
+        // Exports and imports (unchanged)
         for export in &account.exports {
             let mut export_args = vec![
                 "add".to_string(),
@@ -335,7 +341,6 @@ impl NatsSetup {
             }
         }
 
-        // Handle imports
         for import in &account.imports {
             let import_args = vec![
                 "add".to_string(),
