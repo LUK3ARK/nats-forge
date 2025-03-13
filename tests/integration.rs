@@ -1,8 +1,8 @@
-use natsforge::{NatsConfig, NatsSetup, OperatorConfig, AccountConfig, UserConfig, ServerOptions, ResolverType, ExportConfig, ImportConfig};
+use futures_util::StreamExt;
+use natsforge::{NatsConfig, NatsSetup, OperatorConfig, AccountConfig, UserConfig, ServerOptions, ResolverType, ExportConfig};
 use std::path::PathBuf;
 use tokio;
-use async_nats::Client;
-use anyhow::Context;
+use anyhow::{Context, Result};
 
 #[tokio::test]
 async fn test_basic_setup_with_accounts() -> Result<(), Box<dyn std::error::Error>> {
@@ -119,6 +119,8 @@ async fn test_temp_setup_with_accounts() -> Result<(), Box<dyn std::error::Error
 
 #[tokio::test]
 async fn test_setup_validation() -> Result<(), Box<dyn std::error::Error>> {
+    let _ = std::fs::remove_dir_all("test-output-validation");
+
     let config = NatsConfig {
         operator: OperatorConfig {
             name: "test-operator".to_string(),
@@ -145,8 +147,8 @@ async fn test_setup_validation() -> Result<(), Box<dyn std::error::Error>> {
                     expiry: Some("2025-12-31T23:59:59Z".to_string()),
                 }],
                 is_system_account: false,
-                max_connections: Some(1), // Only 1 connection
-                max_payload: Some(1024),  // 1KB max
+                max_connections: Some(1),
+                max_payload: Some(1024),
                 exports: vec![ExportConfig {
                     subject: "test.data".to_string(),
                     is_service: false,
@@ -168,6 +170,7 @@ async fn test_setup_validation() -> Result<(), Box<dyn std::error::Error>> {
     let mut server = tokio::process::Command::new("nats-server")
         .arg("-c")
         .arg(&result.server_config_path)
+        .stdout(std::process::Stdio::inherit())
         .spawn()
         .context("Failed to start NATS server")?;
 
@@ -175,37 +178,36 @@ async fn test_setup_validation() -> Result<(), Box<dyn std::error::Error>> {
 
     let creds = std::fs::read_to_string(&result.user_creds_paths[0])
         .context("Failed to read user creds")?;
-    let client = async_nats::ConnectOptions::with_credentials(creds.clone())
+    println!("Creds:\n{}", creds);
+    let client = async_nats::ConnectOptions::with_credentials(&creds.clone()).unwrap()
         .connect("localhost:4223")
         .await
         .context("Failed to connect to NATS server")?;
 
-    // Test allowed subject
-    let sub = client.subscribe("test.foo".into()).await?;
-    client.publish("test.foo".into(), "hello".into()).await?;
-    if let Some(msg) = sub.next_timeout(tokio::time::Duration::from_secs(1)).await? {
-        assert_eq!(msg.payload, b"hello");
-    } else {
-        return Err(anyhow::anyhow!("No message received on allowed subject").into());
-    }
+    let mut sub = client.subscribe("test.foo").await?;
+    client.publish("test.foo", "hello".into()).await?;
+    let msg = tokio::time::timeout(
+        tokio::time::Duration::from_secs(1),
+        sub.next()
+    ).await
+    .context("Timeout waiting for message")?
+    .ok_or_else(|| anyhow::anyhow!("No message received on allowed subject"))?;
+    assert_eq!(&*msg.payload, b"hello");
 
-    // Test denied subject (should fail)
-    let result = client.publish("forbidden.bar".into(), "nope".into()).await;
+    let result = client.publish("forbidden.bar", "nope".into()).await;
     assert!(result.is_err(), "Publish to denied subject should fail");
 
-    // Test max connections (second connection should fail)
-    let second_client_result = async_nats::ConnectOptions::with_credentials(creds)
+    let second_client_result = async_nats::ConnectOptions::with_credentials(&creds).unwrap()
         .connect("localhost:4223")
         .await;
     assert!(second_client_result.is_err(), "Second connection should fail due to max_connections");
 
-    // Test max payload (1025 bytes should fail)
     let large_payload = vec![0u8; 1025];
-    let result = client.publish("test.foo".into(), large_payload.into()).await;
+    let result = client.publish("test.foo", large_payload.into()).await;
     assert!(result.is_err(), "Large payload should fail due to max_payload");
 
     std::fs::remove_dir_all("test-output-validation")?;
-    server.kill().context("Failed to kill NATS server")?;
+    server.kill().await.context("Failed to kill NATS server")?;
 
     Ok(())
 }

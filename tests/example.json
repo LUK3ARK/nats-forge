@@ -7,17 +7,41 @@
     {
       "name": "SYS",
       "is_system_account": true,
-      "users": []
+      "users": [],
+      "unique_name": "",
+      "max_connections": -1,
+      "max_payload": -1,
+      "exports": [],
+      "imports": []
     },
     {
       "name": "APP1",
       "is_system_account": false,
-      "users": [{ "name": "user1" }, { "name": "user2" }]
+      "users": [
+        {
+          "name": "user1",
+          "allowed_subjects": [],
+          "denied_subjects": [],
+          "expiry": null
+        },
+        {
+          "name": "user2",
+          "allowed_subjects": [],
+          "denied_subjects": [],
+          "expiry": null
+        }
+      ],
+      "unique_name": "",
+      "max_connections": 10,
+      "max_payload": 1048576,
+      "exports": [],
+      "imports": []
     }
   ],
   "output_dir": "./nats-setup",
   "server_options": {
     "port": 4222,
-    "jetstream": true
+    "jetstream": true,
+    "resolver": "Memory"
   }
 }

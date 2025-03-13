@@ -7,6 +7,7 @@ edition = "2021"
 anyhow = "1.0" # Error handling
 base64 = "0.22.1"
 dirs = "6.0.0"
+futures-util = "0.3.31"
 serde = { version = "1.0", features = [
     "derive",
 ] } # Serialization for config structs

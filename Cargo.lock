@@ -703,6 +703,7 @@ dependencies = [
  "async-nats",
  "base64",
  "dirs",
+ "futures-util",
  "serde",
  "serde_json",
  "tempfile",

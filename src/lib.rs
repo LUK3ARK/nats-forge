@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tempfile::TempDir;
-use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::engine::general_purpose::STANDARD_NO_PAD as BASE64;
 use base64::Engine;
 use uuid::Uuid;
 
@@ -147,17 +147,17 @@ impl NatsSetup {
         std::fs::write(&operator_jwt_path, &operator_jwt)
             .context("Failed to write operator JWT")?;
 
-        let delete_output = tokio::process::Command::new("nsc")
-            .args(&["delete", "account", "--name", "SYS", "--data-dir", store_path])
-            .output()
-            .await
-            .context("Failed to delete default SYS account")?;
-        if !delete_output.status.success() && !String::from_utf8_lossy(&delete_output.stderr).contains("account not found") {
-            return Err(anyhow::anyhow!(
-                "nsc delete account SYS failed: {}",
-                String::from_utf8_lossy(&delete_output.stderr)
-            ));
-        }
+        // Get the default SYS account from nsc init
+        let default_sys_jwt_path = self
+            .store_dir
+            .path()
+            .join(&self.config.operator.name)
+            .join("accounts")
+            .join("SYS")
+            .join("SYS.jwt");
+        let default_sys_jwt = std::fs::read_to_string(&default_sys_jwt_path)
+            .context("Failed to read default SYS JWT")?;
+        let default_sys_id = Self::extract_account_id(&default_sys_jwt)?;
 
         let mut account_jwt_paths = Vec::new();
         let mut user_creds_paths = Vec::new();
@@ -165,17 +165,27 @@ impl NatsSetup {
         let mut system_account_id = None;
 
         for account in &self.config.accounts {
-            let account_jwt = self.create_account(account).await?;
-            let account_jwt_path = self.config.output_dir.join(format!("{}.jwt", account.name));
-            std::fs::write(&account_jwt_path, &account_jwt)
-                .context(format!("Failed to write JWT for account {}", account.name))?;
-            account_jwt_paths.push(account_jwt_path);
+            if account.is_system_account && account.name == "SYS" {
+                // Use the default SYS account from nsc init
+                let account_jwt_path = self.config.output_dir.join("SYS.jwt");
+                std::fs::write(&account_jwt_path, &default_sys_jwt)
+                    .context("Failed to write SYS JWT")?;
+                account_jwt_paths.push(account_jwt_path);
+                system_account_id = Some(default_sys_id.clone());
+                resolver_preload.push(format!("    {}: \"{}\"", default_sys_id, default_sys_jwt));
+            } else {
+                let account_jwt = self.create_account(account).await?;
+                let account_jwt_path = self.config.output_dir.join(format!("{}.jwt", account.name));
+                std::fs::write(&account_jwt_path, &account_jwt)
+                    .context(format!("Failed to write JWT for account {}", account.name))?;
+                account_jwt_paths.push(account_jwt_path);
 
-            let account_id = Self::extract_account_id(&account_jwt)?;
-            if account.is_system_account {
-                system_account_id = Some(account_id.clone());
+                let account_id = Self::extract_account_id(&account_jwt)?;
+                if account.is_system_account {
+                    system_account_id = Some(account_id.clone());
+                }
+                resolver_preload.push(format!("    {}: \"{}\"", account_id, account_jwt));
             }
-            resolver_preload.push(format!("    {}: \"{}\"", account_id, account_jwt));
 
             for user in &account.users {
                 let creds_path = self.create_user(account, user).await?;
@@ -230,8 +240,11 @@ impl NatsSetup {
 
         Ok(operator_jwt)
     }
+
     async fn create_account(&self, account: &AccountConfig) -> Result<String> {
         let store_path = self.store_dir.path().to_str().unwrap();
+
+        // Step 1: Add the account
         let mut args = vec![
             "add".to_string(),
             "account".to_string(),
@@ -240,16 +253,6 @@ impl NatsSetup {
             "--data-dir".to_string(),
             store_path.to_string(),
         ];
-
-        if let Some(max_conn) = account.max_connections {
-            args.push("--max-conns".to_string());
-            args.push(max_conn.to_string());
-        }
-
-        if let Some(max_payload) = account.max_payload {
-            args.push("--max-payload".to_string());
-            args.push(max_payload.to_string());
-        }
 
         let output = tokio::process::Command::new("nsc")
             .args(&args)
@@ -262,6 +265,44 @@ impl NatsSetup {
                 "nsc add account failed: {}",
                 String::from_utf8_lossy(&output.stderr)
             ));
+        }
+
+        // Step 2: Edit the account only if there are limits to set
+        let mut edit_args = vec![
+            "edit".to_string(),
+            "account".to_string(),
+            "--name".to_string(),
+            account.unique_name.clone(),
+            "--data-dir".to_string(),
+            store_path.to_string(),
+        ];
+        let mut should_edit = false;
+
+        if let Some(max_conn) = account.max_connections {
+            edit_args.push("--conns".to_string());
+            edit_args.push(max_conn.to_string());
+            should_edit = true;
+        }
+
+        if let Some(max_payload) = account.max_payload {
+            edit_args.push("--data".to_string());
+            edit_args.push(max_payload.to_string());
+            should_edit = true;
+        }
+
+        if should_edit {
+            let edit_output = tokio::process::Command::new("nsc")
+                .args(&edit_args)
+                .output()
+                .await
+                .context(format!("Failed to run nsc edit account {}", account.unique_name))?;
+
+            if !edit_output.status.success() {
+                return Err(anyhow::anyhow!(
+                    "nsc edit account failed: {}",
+                    String::from_utf8_lossy(&edit_output.stderr)
+                ));
+            }
         }
 
         // Handle exports
@@ -363,8 +404,13 @@ impl NatsSetup {
         }
 
         if let Some(expiry) = &user.expiry {
+            let nsc_expiry = if expiry.contains('T') {
+                expiry.split('T').next().unwrap_or(expiry).to_string()
+            } else {
+                expiry.clone()
+            };
             args.push("--expiry".to_string());
-            args.push(expiry.clone());
+            args.push(nsc_expiry);
         }
 
         let output = tokio::process::Command::new("nsc")
@@ -379,6 +425,9 @@ impl NatsSetup {
                 String::from_utf8_lossy(&output.stderr)
             ));
         }
+
+        // Remove existing creds file if it exists
+        let _ = std::fs::remove_file(&creds_path); // Ignore errors if file doesn’t exist
 
         let output = tokio::process::Command::new("nsc")
             .args(&[
@@ -440,9 +489,10 @@ impl NatsSetup {
     }
 
     fn extract_account_id(jwt: &str) -> Result<String> {
+        println!("JWT: {}", jwt); // Debug output
         let parts: Vec<&str> = jwt.split('.').collect();
         if parts.len() != 3 {
-            return Err(anyhow::anyhow!("Invalid JWT format"));
+            return Err(anyhow::anyhow!("Invalid JWT format: {} parts", parts.len()));
         }
         let payload = BASE64
             .decode(parts[1])
