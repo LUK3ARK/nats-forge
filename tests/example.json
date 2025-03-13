@@ -1,0 +1,23 @@
+{
+  "operator": {
+    "name": "my-org",
+    "reuse_existing": false
+  },
+  "accounts": [
+    {
+      "name": "SYS",
+      "is_system_account": true,
+      "users": []
+    },
+    {
+      "name": "APP1",
+      "is_system_account": false,
+      "users": [{ "name": "user1" }, { "name": "user2" }]
+    }
+  ],
+  "output_dir": "./nats-setup",
+  "server_options": {
+    "port": 4222,
+    "jetstream": true
+  }
+}

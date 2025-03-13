@@ -1,0 +1,20 @@
+[package]
+name = "natsforge"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0" # Error handling
+base64 = "0.22.1"
+dirs = "6.0.0"
+serde = { version = "1.0", features = [
+    "derive",
+] } # Serialization for config structs
+serde_json = "1.0.140"
+tempfile = "3.10" # Temporary directories for testing
+tokio = { version = "1.36", features = ["full"] } # Async runtime
+uuid = { version = "1.15.1", features = ["v4"] }
+
+[dev-dependencies]
+async-nats = "0.39.0"
+tokio = { version = "1", features = ["full"] }
