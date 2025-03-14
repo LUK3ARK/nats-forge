@@ -112,7 +112,7 @@ impl NatsForge {
 
                 for user in &account.users {
                     let creds_path =
-                        create_user(account, user, &server.output_dir, &self.store_dir.path().to_path_buf()).await?;
+                        create_user(account, user, &server.output_dir, self.store_dir.path()).await?;
                     let filename = creds_path.file_name().unwrap().to_string_lossy().to_string();
                     creds_map.insert(filename.clone(), (creds_path.clone(), server.output_dir.clone()));
                     user_creds_paths.push(creds_path);

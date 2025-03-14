@@ -58,7 +58,7 @@ pub async fn create_operator(operator: &OperatorConfig, store_dir: &PathBuf) -> 
     std::fs::read_to_string(&operator_jwt_path).context("Failed to read operator JWT")
 }
 
-pub async fn create_account(account: &AccountConfig, operator_name: &str, store_dir: &PathBuf) -> Result<String> {
+pub async fn create_account(account: &AccountConfig, operator_name: &str, store_dir: &Path) -> Result<String> {
     let store_path = store_dir.to_str().unwrap();
     let args = vec![
         "add".to_string(),
