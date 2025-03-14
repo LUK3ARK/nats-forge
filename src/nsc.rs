@@ -25,7 +25,7 @@ pub async fn create_operator(operator: &OperatorConfig, store_dir: &PathBuf) -> 
     std::fs::create_dir_all(store_dir).context("Failed to create store directory")?;
 
     let output = Command::new("nsc")
-        .args(&[
+        .args([
             "init",
             "--name",
             &operator.name,

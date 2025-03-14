@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::Context;
 use futures_util::StreamExt;
 use natsforge::{
     config::{
@@ -23,14 +23,13 @@ async fn test_setup_validation() -> anyhow::Result<()> {
 
     // Clean up port
     let _ = tokio::process::Command::new("pkill")
-        .args(&["-f", &format!("nats-server.*{}", validation_port)])
+        .args(["-f", &format!("nats-server.*{}", validation_port)])
         .output()
         .await;
 
     // Verify port is available
-    if !tokio::net::TcpListener::bind(("0.0.0.0", validation_port))
-        .await
-        .is_ok()
+    if tokio::net::TcpListener::bind(("0.0.0.0", validation_port))
+        .await.is_err()
     {
         return Err(anyhow::anyhow!("Port {} is still in use", validation_port));
     }
@@ -151,7 +150,7 @@ async fn test_hub_leaf_validation() -> anyhow::Result<()> {
 
     for port in [hub_port, leaf_port, leaf_remote_port] {
         let _ = tokio::process::Command::new("pkill")
-            .args(&["-f", &format!("nats-server.*{}", port)])
+            .args(["-f", &format!("nats-server.*{}", port)])
             .output()
             .await;
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
