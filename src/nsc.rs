@@ -150,7 +150,6 @@ pub async fn create_account(account: &AccountConfig, operator_name: &str, store_
     std::fs::read_to_string(&account_jwt_path)
         .context(format!("Failed to read JWT for account {}", account.unique_name))
 }
-
 pub async fn create_user(
     account: &AccountConfig,
     user: &UserConfig,
@@ -240,12 +239,14 @@ pub async fn create_user(
     let jwt = creds_content
         .lines()
         .skip_while(|line| !line.contains("-----BEGIN NATS USER JWT-----"))
+        .skip(1)
         .take_while(|line| !line.contains("------END NATS USER JWT------"))
         .collect::<Vec<_>>()
         .join("\n");
     let seed = creds_content
         .lines()
         .skip_while(|line| !line.contains("-----BEGIN USER NKEY SEED-----"))
+        .skip(1)
         .take_while(|line| !line.contains("------END USER NKEY SEED------"))
         .collect::<Vec<_>>()
         .join("\n");
