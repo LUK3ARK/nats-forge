@@ -4,8 +4,8 @@ use anyhow::Context;
 use futures_util::StreamExt;
 use natsforge::{
     config::{
-        AccountConfig, ExportConfig, JetStreamConfig, LeafNodeConfig, NatsConfig, OperatorConfig, RepublishConfig,
-        ServerConfig, SubjectTransform, UserConfig,
+        AccountConfig, ExportConfig, JetStreamConfig, LeafNodeConfig, NatsConfig, OperatorConfig, ServerConfig,
+        UserConfig,
     },
     NatsForge,
 };
@@ -59,8 +59,13 @@ async fn test_setup_validation() -> anyhow::Result<()> {
                 unique_name: "APP".to_string(),
                 users: vec![UserConfig {
                     name: "app-user".to_string(),
-                    allowed_subjects: vec!["test.>".to_string()],
-                    denied_subjects: vec!["forbidden.>".to_string()],
+                    allowed_pubsub: None,
+                    allowed_publishes: None,
+                    allowed_subjects: Some(vec!["test.>".to_string()]),
+                    denied_pubsub: None,
+                    denied_publishes: None,
+                    denied_subjects: Some(vec!["forbidden.>".to_string()]),
+                    allow_pub_response: None,
                     expiry: Some("2025-12-31T23:59:59Z".to_string()),
                 }],
                 is_system_account: false,

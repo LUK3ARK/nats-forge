@@ -1,0 +1,57 @@
+{
+  "name": "wadm-example",
+  "operator": {
+    "name": "wadmdemo",
+    "reuse_existing": false
+  },
+  "servers": [
+    {
+      "name": "wadm-server",
+      "port": 4222,
+      "jetstream": {
+        "enabled": true,
+        "store_dir": "/tmp/nats/jetstream",
+        "domain": "core"
+      },
+      "accounts": [
+        {
+          "name": "SYS",
+          "users": [
+            {
+              "name": "admin"
+            }
+          ],
+          "is_system_account": true,
+          "unique_name": "",
+          "max_connections": null,
+          "max_payload": null,
+          "exports": [],
+          "imports": []
+        },
+        {
+          "name": "WADM",
+          "users": [
+            {
+              "name": "wadmconsumer",
+              "allowed_publishes": ["wadm.api.>", "wasmbus.ctl.>"],
+              "allow_pub_response": true
+            },
+            {
+              "name": "wadmapp",
+              "allowed_publishes": ["wadm.>", "wasmbus.ctl.>", "$JS.>"],
+              "allowed_subjects": ["wadm.api.>"],
+              "allow_pub_response": true
+            }
+          ],
+          "is_system_account": false,
+          "unique_name": "",
+          "max_connections": null,
+          "max_payload": null,
+          "exports": [],
+          "imports": []
+        }
+      ],
+      "output_dir": "wadm-output"
+    }
+  ]
+}

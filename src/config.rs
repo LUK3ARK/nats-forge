@@ -107,11 +107,13 @@ pub struct AccountConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserConfig {
     pub name: String,
-    #[serde(default)]
-    pub allowed_subjects: Vec<String>,
-    #[serde(default)]
-    pub denied_subjects: Vec<String>,
-    #[serde(default)]
+    pub allowed_pubsub: Option<Vec<String>>,    // Maps to --allow-pubsub
+    pub allowed_publishes: Option<Vec<String>>, // Maps to --allow-pub
+    pub allowed_subjects: Option<Vec<String>>,  // Maps to --allow-sub
+    pub denied_pubsub: Option<Vec<String>>,     // Maps to --deny-pubsub
+    pub denied_publishes: Option<Vec<String>>,  // Maps to --deny-pub
+    pub denied_subjects: Option<Vec<String>>,   // Maps to --deny-sub
+    pub allow_pub_response: Option<bool>,       // Maps to --allow-pub-response
     pub expiry: Option<String>,
 }
 

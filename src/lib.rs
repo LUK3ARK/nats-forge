@@ -10,13 +10,14 @@ use uuid::Uuid;
 
 use crate::{
     config::{AccountConfig, NatsConfig, SetupResult},
-    nsc::{create_account, create_operator, create_user, extract_account_id},
+    nsc::{create_account, create_operator, create_user},
     server::generate_server_config,
 };
 
 pub mod config;
 mod nsc;
 mod server;
+pub use nsc::extract_account_id;
 
 pub struct NatsForge {
     config: NatsConfig,
@@ -71,12 +72,17 @@ impl NatsForge {
         }
         Ok(NatsForge { config, store_dir })
     }
-
     pub async fn initialize(&self) -> Result<SetupResult> {
         let operator_jwt = create_operator(&self.config.operator, &self.store_dir.path().to_path_buf()).await?;
         let operator_jwt_path = self.config.servers[0].output_dir.join("operator.jwt");
+        println!("Writing operator JWT to: {}", operator_jwt_path.display());
         std::fs::create_dir_all(operator_jwt_path.parent().unwrap())?;
         std::fs::write(&operator_jwt_path, &operator_jwt)?;
+        if !operator_jwt_path.exists() {
+            println!("Operator JWT write failed: {}", operator_jwt_path.display());
+            return Err(anyhow::anyhow!("Failed to write operator JWT"));
+        }
+        println!("Operator JWT written successfully");
 
         let default_sys_jwt_path = self
             .store_dir

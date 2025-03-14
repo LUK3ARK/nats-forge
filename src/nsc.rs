@@ -150,6 +150,7 @@ pub async fn create_account(account: &AccountConfig, operator_name: &str, store_
     std::fs::read_to_string(&account_jwt_path)
         .context(format!("Failed to read JWT for account {}", account.unique_name))
 }
+
 pub async fn create_user(
     account: &AccountConfig,
     user: &UserConfig,
@@ -176,14 +177,50 @@ pub async fn create_user(
         store_dir.to_str().unwrap().to_string(),
     ];
 
-    if !user.allowed_subjects.is_empty() {
-        add_args.push("--allow-pubsub".to_string());
-        add_args.push(user.allowed_subjects.join(","));
+    if let Some(pubsub) = &user.allowed_pubsub {
+        if !pubsub.is_empty() {
+            add_args.push("--allow-pubsub".to_string());
+            add_args.push(pubsub.join(","));
+        }
     }
 
-    if !user.denied_subjects.is_empty() {
-        add_args.push("--deny-pubsub".to_string());
-        add_args.push(user.denied_subjects.join(","));
+    if let Some(publishes) = &user.allowed_publishes {
+        if !publishes.is_empty() {
+            add_args.push("--allow-pub".to_string());
+            add_args.push(publishes.join(","));
+        }
+    }
+
+    if let Some(subjects) = &user.allowed_subjects {
+        if !subjects.is_empty() {
+            add_args.push("--allow-sub".to_string());
+            add_args.push(subjects.join(","));
+        }
+    }
+
+    if let Some(pubsub) = &user.denied_pubsub {
+        if !pubsub.is_empty() {
+            add_args.push("--deny-pubsub".to_string());
+            add_args.push(pubsub.join(","));
+        }
+    }
+
+    if let Some(publishes) = &user.denied_publishes {
+        if !publishes.is_empty() {
+            add_args.push("--deny-pub".to_string());
+            add_args.push(publishes.join(","));
+        }
+    }
+
+    if let Some(subjects) = &user.denied_subjects {
+        if !subjects.is_empty() {
+            add_args.push("--deny-sub".to_string());
+            add_args.push(subjects.join(","));
+        }
+    }
+
+    if let Some(true) = user.allow_pub_response {
+        add_args.push("--allow-pub-response".to_string());
     }
 
     if let Some(expiry) = &user.expiry {
@@ -196,6 +233,7 @@ pub async fn create_user(
         add_args.push(nsc_expiry);
     }
 
+    println!("Running nsc add user command for {}: {:?}", user.name, add_args);
     let add_output = Command::new("nsc")
         .args(&add_args)
         .output()
@@ -203,11 +241,26 @@ pub async fn create_user(
         .context(format!("Failed to run nsc add user {}", user.name))?;
 
     if !add_output.status.success() {
+        println!("nsc add user stderr: {}", String::from_utf8_lossy(&add_output.stderr));
         return Err(anyhow::anyhow!(
             "nsc add user failed: {}",
             String::from_utf8_lossy(&add_output.stderr)
         ));
     }
+
+    // Paranoid dir check
+    println!("Ensuring output dir for {}: {}", user.name, output_dir.display());
+    std::fs::create_dir_all(output_dir)
+        .context(format!("Failed to ensure output dir exists: {}", output_dir.display()))?;
+    if !output_dir.exists() {
+        return Err(anyhow::anyhow!(
+            "Output dir {} still doesn't exist!",
+            output_dir.display()
+        ));
+    }
+    let test_file = output_dir.join(format!("test-write-{}.txt", user.name));
+    std::fs::write(&test_file, "test").context("Failed to verify write permissions")?;
+    std::fs::remove_file(&test_file)?;
 
     if creds_path.exists() {
         std::fs::remove_file(&creds_path)?;
@@ -226,11 +279,36 @@ pub async fn create_user(
         store_dir.to_str().unwrap().to_string(),
     ];
 
-    let generate_output = Command::new("nsc").args(&generate_args).output().await?;
+    println!(
+        "Running nsc generate creds command for {}: {:?}",
+        user.name, generate_args
+    );
+    let mut attempts = 0;
+    let max_attempts = 2;
+    let generate_output = loop {
+        attempts += 1;
+        let output = Command::new("nsc").args(&generate_args).output().await?;
+        if output.status.success() || attempts >= max_attempts {
+            break output;
+        }
+        println!(
+            "Retry attempt {}/{} for {} due to failure: {}",
+            attempts,
+            max_attempts,
+            user.name,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    };
 
     if !generate_output.status.success() {
+        println!(
+            "nsc generate creds stderr: {}",
+            String::from_utf8_lossy(&generate_output.stderr)
+        );
         return Err(anyhow::anyhow!(
-            "nsc generate creds failed: {}",
+            "nsc generate creds failed after {} attempts: {}",
+            max_attempts,
             String::from_utf8_lossy(&generate_output.stderr)
         ));
     }
@@ -261,6 +339,8 @@ pub async fn create_user(
     );
 
     std::fs::write(&creds_path, &formatted_creds)?;
+    println!("Wrote creds to {}: content=\n{}", creds_path.display(), formatted_creds);
+
     Ok(creds_path)
 }
 
