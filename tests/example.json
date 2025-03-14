@@ -1,47 +1,54 @@
 {
+  "name": "my-nats-setup",
   "operator": {
     "name": "my-org",
     "reuse_existing": false
   },
-  "accounts": [
+  "servers": [
     {
-      "name": "SYS",
-      "is_system_account": true,
-      "users": [],
-      "unique_name": "",
-      "max_connections": -1,
-      "max_payload": -1,
-      "exports": [],
-      "imports": []
-    },
-    {
-      "name": "APP1",
-      "is_system_account": false,
-      "users": [
+      "name": "main-server",
+      "port": 4222,
+      "jetstream": {
+        "enabled": true,
+        "store_dir": "./nats-setup/jetstream",
+        "domain": "core"
+      },
+      "accounts": [
         {
-          "name": "user1",
-          "allowed_subjects": [],
-          "denied_subjects": [],
-          "expiry": null
+          "name": "SYS",
+          "is_system_account": true,
+          "users": [],
+          "unique_name": "",
+          "max_connections": -1,
+          "max_payload": -1,
+          "exports": [],
+          "imports": []
         },
         {
-          "name": "user2",
-          "allowed_subjects": [],
-          "denied_subjects": [],
-          "expiry": null
+          "name": "APP1",
+          "is_system_account": false,
+          "users": [
+            {
+              "name": "user1",
+              "allowed_subjects": [],
+              "denied_subjects": [],
+              "expiry": null
+            },
+            {
+              "name": "user2",
+              "allowed_subjects": [],
+              "denied_subjects": [],
+              "expiry": null
+            }
+          ],
+          "unique_name": "",
+          "max_connections": 10,
+          "max_payload": 1048576,
+          "exports": [],
+          "imports": []
         }
       ],
-      "unique_name": "",
-      "max_connections": 10,
-      "max_payload": 1048576,
-      "exports": [],
-      "imports": []
+      "output_dir": "./nats-setup"
     }
-  ],
-  "output_dir": "./nats-setup",
-  "server_options": {
-    "port": 4222,
-    "jetstream": true,
-    "resolver": "Memory"
-  }
+  ]
 }

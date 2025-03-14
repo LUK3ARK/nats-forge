@@ -1,6 +1,6 @@
 // use futures_util::StreamExt;
-// use natsforge::{NatsConfig, NatsSetup, OperatorConfig, AccountConfig, UserConfig, ServerOptions, ResolverType, ExportConfig};
-// use std::path::PathBuf;
+// use natsforge::{NatsConfig, NatsSetup, OperatorConfig, AccountConfig, UserConfig, ServerOptions,
+// ResolverType, ExportConfig}; use std::path::PathBuf;
 // use tokio;
 // use anyhow::{Context, Result};
 // use tokio::process::Child;
@@ -217,29 +217,33 @@
 //     // Test denied subject
 //     let sub_result = client.subscribe("forbidden.bar").await;
 //     println!("Subscribe to forbidden.bar result: {:?}", sub_result);
-//     assert!(sub_result.is_ok(), "Subscribe returns Ok despite server rejection (async_nats behavior)");
+//     assert!(sub_result.is_ok(), "Subscribe returns Ok despite server rejection (async_nats
+// behavior)");
 
 //     let mut sub = sub_result.unwrap();
 //     let msg = tokio::time::timeout(tokio::time::Duration::from_secs(1), sub.next()).await;
 //     println!("Message on forbidden.bar: {:?}", msg);
-//     assert!(msg.is_err() || msg.unwrap().is_none(), "Should not receive messages on denied subject");
+//     assert!(msg.is_err() || msg.unwrap().is_none(), "Should not receive messages on denied
+// subject");
 
 //     // Publish to trigger enforcement
 //     let pub_result = client.publish("forbidden.bar", "nope".into()).await;
 //     println!("Publish to forbidden.bar result: {:?}", pub_result);
-//     assert!(pub_result.is_ok(), "Publish returns Ok despite server rejection (async_nats behavior)");
-//     client.flush().await?;
+//     assert!(pub_result.is_ok(), "Publish returns Ok despite server rejection (async_nats
+// behavior)");     client.flush().await?;
 //     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 //     let state = client.connection_state();
 //     println!("Connection state after forbidden publish: {:?}", state);
 //     // Note: If state stays Connected, we’ll adjust this
-//     // assert!(state != async_nats::connection::State::Connected, "Publish to denied subject should disconnect");
+//     // assert!(state != async_nats::connection::State::Connected, "Publish to denied subject
+// should disconnect");
 
 //     let second_client_result = async_nats::ConnectOptions::with_credentials(&creds)
 //         .context("Failed to parse credentials")?
 //         .connect("localhost:4223")
 //         .await;
-//     assert!(second_client_result.is_err(), "Second connection should fail due to max_connections");
+//     assert!(second_client_result.is_err(), "Second connection should fail due to
+// max_connections");
 
 //     std::fs::remove_dir_all("test-output-validation")?;
 //     server_guard.0.kill().await.context("Failed to kill NATS server")?;

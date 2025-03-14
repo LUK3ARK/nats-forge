@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0" # Error handling
 base64 = "0.22.1"
+clap = { version = "4.5.32", features = ["derive"] }
 dirs = "6.0.0"
 futures-util = "0.3.31"
 serde = { version = "1.0", features = [

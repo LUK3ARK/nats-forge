@@ -1,4 +1,3 @@
-// tests/hub_leaf.json
 {
   "name": "generic-deployment",
   "operator": {
@@ -22,7 +21,7 @@
           "name": "SYS",
           "users": [{ "name": "admin" }],
           "is_system_account": true,
-          "unique_name": "",
+          "unique_name": "SYS",
           "max_connections": null,
           "max_payload": null,
           "exports": [],
