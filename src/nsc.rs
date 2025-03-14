@@ -20,8 +20,6 @@ pub async fn create_operator(operator: &OperatorConfig, store_dir: &PathBuf) -> 
     }
 
     let store_path = store_dir.to_str().unwrap();
-
-    // Ensure store directory exists
     std::fs::create_dir_all(store_dir).context("Failed to create store directory")?;
 
     let output = Command::new("nsc")
@@ -39,18 +37,13 @@ pub async fn create_operator(operator: &OperatorConfig, store_dir: &PathBuf) -> 
         .context("Failed to run nsc init")?;
 
     if !output.status.success() {
-        println!("nsc init stdout: {}", String::from_utf8_lossy(&output.stdout));
-        println!("nsc init stderr: {}", String::from_utf8_lossy(&output.stderr));
         return Err(anyhow::anyhow!(
             "nsc init failed: {}",
             String::from_utf8_lossy(&output.stderr)
         ));
     }
-    println!("nsc init stdout: {}", String::from_utf8_lossy(&output.stdout));
 
     let operator_jwt_path = store_dir.join(&operator.name).join(format!("{}.jwt", &operator.name));
-
-    // Ensure operator JWT directory exists
     if let Some(parent) = operator_jwt_path.parent() {
         std::fs::create_dir_all(parent).context("Failed to create operator JWT directory")?;
     }
@@ -76,8 +69,6 @@ pub async fn create_account(account: &AccountConfig, operator_name: &str, store_
         .context(format!("Failed to run nsc add account {}", account.unique_name))?;
 
     if !output.status.success() {
-        println!("nsc add account stdout: {}", String::from_utf8_lossy(&output.stdout));
-        println!("nsc add account stderr: {}", String::from_utf8_lossy(&output.stderr));
         return Err(anyhow::anyhow!(
             "nsc add account failed: {}",
             String::from_utf8_lossy(&output.stderr)
@@ -143,8 +134,6 @@ pub async fn create_account(account: &AccountConfig, operator_name: &str, store_
             .await
             .context(format!("Failed to add export {}", export.subject))?;
         if !export_output.status.success() {
-            println!("nsc add export stdout: {}", String::from_utf8_lossy(&export_output.stdout));
-            println!("nsc add export stderr: {}", String::from_utf8_lossy(&export_output.stderr));
             return Err(anyhow::anyhow!(
                 "nsc add export failed: {}",
                 String::from_utf8_lossy(&export_output.stderr)
@@ -208,7 +197,6 @@ pub async fn create_user(
         add_args.push(nsc_expiry);
     }
 
-    println!("Running nsc add user command: {:?}", add_args);
     let add_output = Command::new("nsc")
         .args(&add_args)
         .output()
@@ -216,8 +204,6 @@ pub async fn create_user(
         .context(format!("Failed to run nsc add user {}", user.name))?;
 
     if !add_output.status.success() {
-        println!("nsc add user stdout: {}", String::from_utf8_lossy(&add_output.stdout));
-        println!("nsc add user stderr: {}", String::from_utf8_lossy(&add_output.stderr));
         return Err(anyhow::anyhow!(
             "nsc add user failed: {}",
             String::from_utf8_lossy(&add_output.stderr)
@@ -225,7 +211,6 @@ pub async fn create_user(
     }
 
     if creds_path.exists() {
-        println!("Removing existing creds file: {}", creds_path.display());
         std::fs::remove_file(&creds_path)?;
     }
 
@@ -233,7 +218,7 @@ pub async fn create_user(
         "generate".to_string(),
         "creds".to_string(),
         "--account".to_string(),
-        account_name.clone(),
+        account_name,
         "--name".to_string(),
         user.name.clone(),
         "--output-file".to_string(),
@@ -242,15 +227,12 @@ pub async fn create_user(
         store_dir.to_str().unwrap().to_string(),
     ];
 
-    println!("Running nsc generate creds command: {:?}", generate_args);
     let generate_output = Command::new("nsc")
         .args(&generate_args)
         .output()
         .await?;
 
     if !generate_output.status.success() {
-        println!("nsc generate creds stdout: {}", String::from_utf8_lossy(&generate_output.stdout));
-        println!("nsc generate creds stderr: {}", String::from_utf8_lossy(&generate_output.stderr));
         return Err(anyhow::anyhow!(
             "nsc generate creds failed: {}",
             String::from_utf8_lossy(&generate_output.stderr)
@@ -290,7 +272,6 @@ pub async fn create_user(
     );
 
     std::fs::write(&creds_path, &formatted_creds)?;
-
     Ok(creds_path)
 }
 

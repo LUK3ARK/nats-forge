@@ -27,7 +27,6 @@ impl NatsForge {
         let unique_operator_name = format!("{}-{}", config.operator.name, Uuid::new_v4());
         config.operator.name = unique_operator_name;
 
-        // Generate unique names for accounts if not already set
         for server in &mut config.servers {
             for account in &mut server.accounts {
                 if account.unique_name.is_empty() {
@@ -70,15 +69,14 @@ impl NatsForge {
         }
         Ok(NatsForge { config, store_dir })
     }
+
     pub async fn initialize(&self) -> Result<SetupResult> {
         let operator_jwt = create_operator(&self.config.operator, &self.store_dir.path().to_path_buf()).await?;
         let operator_jwt_path = self.config.servers[0].output_dir.join("operator.jwt");
         std::fs::create_dir_all(operator_jwt_path.parent().unwrap())?;
         std::fs::write(&operator_jwt_path, &operator_jwt)?;
 
-        let default_sys_jwt_path = self
-            .store_dir
-            .path()
+        let default_sys_jwt_path = self.store_dir.path()
             .join(&self.config.operator.name)
             .join("accounts")
             .join("SYS")
@@ -93,8 +91,6 @@ impl NatsForge {
         let mut creds_map: HashMap<String, Vec<(PathBuf, PathBuf)>> = HashMap::new();
         let mut name_to_unique: HashMap<String, String> = HashMap::new();
 
-        // Step 1: Collect all accounts and map name to unique_name
-        println!("Step 1: Collecting accounts");
         let mut all_accounts: Vec<(usize, usize, &AccountConfig)> = Vec::new();
         for (server_idx, server) in self.config.servers.iter().enumerate() {
             std::fs::create_dir_all(&server.output_dir)?;
@@ -104,8 +100,6 @@ impl NatsForge {
             }
         }
 
-        // Step 2: Build dependency graph with unique_name
-        println!("Step 2: Building dependency graph");
         let mut dependencies: HashMap<String, HashSet<String>> = HashMap::new();
         for (_, _, account) in &all_accounts {
             let account_unique_name = &account.unique_name;
@@ -113,22 +107,14 @@ impl NatsForge {
             for import in &account.imports {
                 let src_unique_name = name_to_unique.get(&import.account)
                     .ok_or_else(|| anyhow::anyhow!("Unknown import account: {}", import.account))?;
-                dependencies
-                    .entry(src_unique_name.clone())
-                    .or_default()
-                    .insert(account_unique_name.clone());
+                dependencies.entry(src_unique_name.clone()).or_default().insert(account_unique_name.clone());
             }
         }
 
         let sorted_accounts = topological_sort(&dependencies)?;
 
-        // Step 3: Create accounts in dependency order
-        println!("Step 3: Creating accounts");
         for account_unique_name in &sorted_accounts {
-            if let Some((server_idx, _, account)) = all_accounts
-                .iter()
-                .find(|(_, _, a)| a.unique_name == *account_unique_name)
-            {
+            if let Some((server_idx, _, account)) = all_accounts.iter().find(|(_, _, a)| a.unique_name == *account_unique_name) {
                 let server = &self.config.servers[*server_idx];
                 let abs_output_dir = std::fs::canonicalize(&server.output_dir)?;
                 std::fs::create_dir_all(&abs_output_dir)?;
@@ -145,41 +131,25 @@ impl NatsForge {
 
                 for user in &account.users {
                     let creds_path = create_user(account, user, &abs_output_dir, self.store_dir.path()).await?;
-                    println!("Created creds at {}: exists={}", creds_path.display(), creds_path.exists());
-                    let content = std::fs::read_to_string(&creds_path).unwrap_or_else(|e| format!("Failed to read: {}", e));
-                    println!("Creds content after creation: \n{}", content);
-                    println!("Raw bytes after creation: {:?}", hex::encode(std::fs::read(&creds_path).unwrap_or_default()));
-
                     let filename = creds_path.file_name().unwrap().to_string_lossy().to_string();
-                    creds_map
-                        .entry(filename.clone())
-                        .or_insert_with(Vec::new)
-                        .push((creds_path.clone(), server.output_dir.clone()));
+                    creds_map.entry(filename.clone()).or_insert_with(Vec::new).push((creds_path.clone(), server.output_dir.clone()));
                     user_creds_paths.push(creds_path);
                 }
             }
         }
 
-        // Step 4: Add imports after all accounts are created
-        println!("Step 4: Adding imports");
         for (_, _, account) in &all_accounts {
             for (i, import) in account.imports.iter().enumerate() {
                 let import_name = format!("import-{}", i);
                 let src_unique_name = name_to_unique.get(&import.account)
                     .ok_or_else(|| anyhow::anyhow!("Unknown import account: {}", import.account))?;
                 let mut import_args = vec![
-                    "add".to_string(),
-                    "import".to_string(),
-                    "--name".to_string(),
-                    import_name,
-                    "--src-account".to_string(),
-                    src_unique_name.clone(),
-                    "--remote-subject".to_string(),
-                    import.subject.clone(),
-                    "--account".to_string(),
-                    account.unique_name.clone(),
-                    "--data-dir".to_string(),
-                    self.store_dir.path().to_str().unwrap().to_string(),
+                    "add".to_string(), "import".to_string(),
+                    "--name".to_string(), import_name,
+                    "--src-account".to_string(), src_unique_name.clone(),
+                    "--remote-subject".to_string(), import.subject.clone(),
+                    "--account".to_string(), account.unique_name.clone(),
+                    "--data-dir".to_string(), self.store_dir.path().to_str().unwrap().to_string(),
                 ];
                 if let Some(local_subject) = &import.local_subject {
                     import_args.push("--local-subject".to_string());
@@ -188,46 +158,24 @@ impl NatsForge {
                 if import.service {
                     import_args.push("--service".to_string());
                 }
-                let import_output = Command::new("nsc")
-                    .args(&import_args)
-                    .output()
-                    .await
+                let import_output = Command::new("nsc").args(&import_args).output().await
                     .context(format!("Failed to add import {}", import.subject))?;
                 if !import_output.status.success() {
-                    println!("nsc add import stdout: {}", String::from_utf8_lossy(&import_output.stdout));
-                    println!("nsc add import stderr: {}", String::from_utf8_lossy(&import_output.stderr));
-                    return Err(anyhow::anyhow!(
-                        "nsc add import failed: {}",
-                        String::from_utf8_lossy(&import_output.stderr)
-                    ));
+                    return Err(anyhow::anyhow!("nsc add import failed: {}", String::from_utf8_lossy(&import_output.stderr)));
                 }
             }
         }
 
-        // Step 5: Distribute creds and JWTs
-        println!("Step 5: Distributing creds and JWTs");
         for server in &self.config.servers {
             let abs_output_dir = std::fs::canonicalize(&server.output_dir)?;
             for remote in &server.leafnodes.remotes {
                 if let Some(creds_entries) = creds_map.get(&remote.credentials) {
-                    let (source_path, _) = creds_entries
-                        .iter()
-                        .find(|(path, _)| path.exists())
+                    let (source_path, _) = creds_entries.iter().find(|(path, _)| path.exists())
                         .ok_or_else(|| anyhow::anyhow!("No existing creds file for {}", remote.credentials))?;
 
                     let source_content = std::fs::read_to_string(source_path)?;
-                    println!("Source creds at {}: content=\n{}", source_path.display(), source_content);
                     let abs_dest = abs_output_dir.join(&remote.credentials);
-
                     std::fs::write(&abs_dest, &source_content)?;
-                    let copied_content = std::fs::read_to_string(&abs_dest)?;
-                    println!("Copied creds to {}: content=\n{}", abs_dest.display(), copied_content);
-                    println!("Raw bytes at {}: {:?}", abs_dest.display(), hex::encode(std::fs::read(&abs_dest)?));
-
-                    // Verify no extra whitespace
-                    if copied_content.trim() != source_content.trim() {
-                        return Err(anyhow::anyhow!("Copied creds at {} corrupted", abs_dest.display()));
-                    }
                 } else {
                     return Err(anyhow::anyhow!("No creds entry found for {}", remote.credentials));
                 }
@@ -235,16 +183,10 @@ impl NatsForge {
 
             for (account_name, account_jwt) in &account_jwts {
                 let dest_jwt_path = abs_output_dir.join(format!("{}.jwt", account_name));
-                std::fs::write(&dest_jwt_path, account_jwt).context(format!(
-                    "Failed to copy JWT for {} to {}",
-                    account_name,
-                    dest_jwt_path.display()
-                ))?;
+                std::fs::write(&dest_jwt_path, account_jwt)?;
             }
         }
 
-        // Step 6: Generate configs
-        println!("Step 6: Generating configs");
         for server in &self.config.servers {
             let abs_output_dir = std::fs::canonicalize(&server.output_dir)?;
             let mut resolver_preload = Vec::new();
@@ -274,23 +216,6 @@ impl NatsForge {
             std::fs::write(&server_config_path, &server_config)?;
             server_config_paths.push(server_config_path);
         }
-
-        // Final creds verification
-        for creds_path in &user_creds_paths {
-            let final_content = std::fs::read_to_string(creds_path)
-                .unwrap_or_else(|e| format!("Failed to read: {}", e));
-            println!("Final creds check at {}: content=\n{}", creds_path.display(), final_content);
-            println!("Final raw bytes at {}: {:?}", creds_path.display(),
-                hex::encode(std::fs::read(creds_path).unwrap_or_default()));
-        }
-
-        println!("Configuration generated: {:?}", SetupResult {
-            operator_jwt_path: operator_jwt_path.clone(),
-            account_jwt_paths: account_jwt_paths.clone(),
-            user_creds_paths: user_creds_paths.clone(),
-            server_config_path: self.config.servers[0].output_dir.join("nats.conf"),
-            server_config_paths: Some(server_config_paths.clone()),
-        });
 
         Ok(SetupResult {
             operator_jwt_path,
