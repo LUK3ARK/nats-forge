@@ -10,7 +10,7 @@ pub struct NatsConfig {
     pub servers: Vec<ServerConfig>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
     pub name: String,
     pub port: u16,
@@ -21,16 +21,29 @@ pub struct ServerConfig {
     #[serde(default)]
     pub accounts: Vec<AccountConfig>,
     pub output_dir: PathBuf,
+    #[serde(default)]
+    pub tls: Option<TlsConfig>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TlsConfig {
+    pub cert_file: String,
+    pub key_file: String,
+    pub ca_file: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct JetStreamConfig {
     pub enabled: bool,
     pub store_dir: Option<String>,
     pub domain: Option<String>,
+    #[serde(default)]
+    pub max_memory: Option<i64>, // Bytes
+    #[serde(default)]
+    pub max_storage: Option<i64>, // Bytes
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct LeafNodeConfig {
     #[serde(default)]
     pub port: Option<u16>,
@@ -38,21 +51,21 @@ pub struct LeafNodeConfig {
     pub remotes: Vec<RemoteConfig>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RemoteConfig {
     pub url: String,
     pub account: String,
     pub credentials: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OperatorConfig {
     pub name: String,
     #[serde(default)]
     pub reuse_existing: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountConfig {
     pub name: String,
     #[serde(default)]
@@ -71,7 +84,7 @@ pub struct AccountConfig {
     pub imports: Vec<ImportConfig>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserConfig {
     pub name: String,
     #[serde(default)]
@@ -82,26 +95,26 @@ pub struct UserConfig {
     pub expiry: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportConfig {
     pub subject: String,
     #[serde(default)]
     pub is_service: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImportConfig {
     pub subject: String,
     pub account: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ResolverType {
     Memory,
     Url(String),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerOptions {
     pub port: u16,
     #[serde(default)]

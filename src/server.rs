@@ -11,11 +11,29 @@ pub fn generate_server_config(
 ) -> String {
     let mut config = format!("port: {}\nserver_name: \"{}\"\n\n", server.port, server.name);
     if server.jetstream.enabled {
+        config.push_str("jetstream {\n");
         config.push_str(&format!(
-            "jetstream {{\n    store_dir: \"{}\"\n    domain: \"{}\"\n}}\n\n",
+            "    store_dir: \"{}\"\n    domain: \"{}\"\n",
             server.jetstream.store_dir.as_ref().unwrap_or(&"jetstream".to_string()),
             server.jetstream.domain.as_ref().unwrap_or(&"core".to_string())
         ));
+        if let Some(max_mem) = server.jetstream.max_memory {
+            config.push_str(&format!("    max_memory_store: {}\n", max_mem));
+        }
+        if let Some(max_store) = server.jetstream.max_storage {
+            config.push_str(&format!("    max_file_store: {}\n", max_store));
+        }
+        config.push_str("}\n\n");
+    }
+    if let Some(tls) = &server.tls {
+        config.push_str(&format!(
+            "tls {{\n    cert_file: \"{}\"\n    key_file: \"{}\"\n",
+            tls.cert_file, tls.key_file
+        ));
+        if let Some(ca_file) = &tls.ca_file {
+            config.push_str(&format!("    ca_file: \"{}\"\n", ca_file));
+        }
+        config.push_str("}\n\n");
     }
     if let Some(port) = server.leafnodes.port {
         config.push_str(&format!("leafnodes {{\n    port: {}\n}}\n\n", port));

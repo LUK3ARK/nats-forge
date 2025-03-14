@@ -48,6 +48,8 @@ async fn test_setup_validation() -> anyhow::Result<()> {
                 enabled: true,
                 store_dir: Some("test-output-validation/jetstream".to_string()),
                 domain: Some("test".to_string()),
+                max_memory: None,
+                    max_storage: None,
             },
             leafnodes: LeafNodeConfig::default(),
             accounts: vec![AccountConfig {
@@ -69,6 +71,7 @@ async fn test_setup_validation() -> anyhow::Result<()> {
                 imports: vec![],
             }],
             output_dir: PathBuf::from("test-output-validation"),
+            tls: None,
         }],
     };
 
@@ -138,7 +141,6 @@ async fn test_setup_validation() -> anyhow::Result<()> {
 
     Ok(())
 }
-
 #[tokio::test]
 async fn test_hub_leaf_validation() -> anyhow::Result<()> {
     let hub_port = 4232;
@@ -174,6 +176,12 @@ async fn test_hub_leaf_validation() -> anyhow::Result<()> {
     let forge = NatsForge::from_config(config)?;
     let result = forge.initialize().await?;
 
+    // Log configs for inspection
+    let hub_config = std::fs::read_to_string(&result.server_config_paths.as_ref().unwrap()[0])?;
+    let leaf_config = std::fs::read_to_string(&result.server_config_paths.as_ref().unwrap()[1])?;
+    println!("Hub config:\n{}", hub_config);
+    println!("Leaf config:\n{}", leaf_config);
+
     let hub_server = tokio::process::Command::new("nats-server")
         .arg("-c")
         .arg(&result.server_config_paths.as_ref().unwrap()[0])
@@ -183,19 +191,16 @@ async fn test_hub_leaf_validation() -> anyhow::Result<()> {
         .spawn()?;
     let mut hub_guard = ServerGuard(hub_server);
 
-    if let Some(stderr) = hub_guard.0.stderr.take() {
-        tokio::spawn(async move {
-            let mut reader = tokio::io::BufReader::new(stderr);
-            let mut line = String::new();
-            while let Ok(n) = reader.read_line(&mut line).await {
-                if n == 0 {
-                    break;
-                }
-                println!("Hub stderr: {}", line.trim());
-                line.clear();
-            }
-        });
-    }
+    let hub_stderr = hub_guard.0.stderr.take().unwrap();
+    tokio::spawn(async move {
+        let mut reader = tokio::io::BufReader::new(hub_stderr);
+        let mut line = String::new();
+        while let Ok(n) = reader.read_line(&mut line).await {
+            if n == 0 { break; }
+            println!("Hub stderr: {}", line.trim());
+            line.clear();
+        }
+    });
 
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
@@ -208,19 +213,16 @@ async fn test_hub_leaf_validation() -> anyhow::Result<()> {
         .spawn()?;
     let mut leaf_guard = ServerGuard(leaf_server);
 
-    if let Some(stderr) = leaf_guard.0.stderr.take() {
-        tokio::spawn(async move {
-            let mut reader = tokio::io::BufReader::new(stderr);
-            let mut line = String::new();
-            while let Ok(n) = reader.read_line(&mut line).await {
-                if n == 0 {
-                    break;
-                }
-                println!("Leaf stderr: {}", line.trim());
-                line.clear();
-            }
-        });
-    }
+    let leaf_stderr = leaf_guard.0.stderr.take().unwrap();
+    tokio::spawn(async move {
+        let mut reader = tokio::io::BufReader::new(leaf_stderr);
+        let mut line = String::new();
+        while let Ok(n) = reader.read_line(&mut line).await {
+            if n == 0 { break; }
+            println!("Leaf stderr: {}", line.trim());
+            line.clear();
+        }
+    });
 
     tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
 
@@ -246,11 +248,7 @@ async fn test_hub_leaf_validation() -> anyhow::Result<()> {
             Err(e) => {
                 retry_count += 1;
                 if retry_count >= max_retries {
-                    return Err(anyhow::anyhow!(
-                        "Failed to connect to leaf after {} retries: {}",
-                        max_retries,
-                        e
-                    ));
+                    return Err(anyhow::anyhow!("Failed to connect to leaf after {} retries: {}", max_retries, e));
                 }
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
@@ -268,32 +266,24 @@ async fn test_hub_leaf_validation() -> anyhow::Result<()> {
             Err(e) => {
                 retry_count += 1;
                 if retry_count >= max_retries {
-                    return Err(anyhow::anyhow!(
-                        "Failed to connect to hub after {} retries: {}",
-                        max_retries,
-                        e
-                    ));
+                    return Err(anyhow::anyhow!("Failed to connect to hub after {} retries: {}", max_retries, e));
                 }
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
         }
     };
 
-    let mut sub = hub_client
-        .subscribe("events.test")
+    let mut sub = hub_client.subscribe("events.test")
         .await
         .map_err(|e| anyhow::anyhow!("Failed to subscribe: {}", e))?;
 
-    // Give leafnode time to propagate subscription
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
-    leaf_client
-        .publish("events.test", "Hello from leaf".into())
+    leaf_client.publish("events.test", "Hello from leaf".into())
         .await
         .map_err(|e| anyhow::anyhow!("Failed to publish: {}", e))?;
 
-    leaf_client
-        .flush()
+    leaf_client.flush()
         .await
         .map_err(|e| anyhow::anyhow!("Failed to flush: {}", e))?;
 
@@ -302,6 +292,9 @@ async fn test_hub_leaf_validation() -> anyhow::Result<()> {
         .ok_or_else(|| anyhow::anyhow!("No message received"))?;
 
     assert_eq!(msg.payload, "Hello from leaf");
+
+    // TODO: Add TLS testing once implemented
+    // todo!("Test TLS configuration when added to NatsForge");
 
     std::fs::remove_dir_all("hub-output")?;
     std::fs::remove_dir_all("leaf-output")?;

@@ -24,6 +24,8 @@ async fn test_basic_setup_with_accounts() -> Result<(), Box<dyn std::error::Erro
                 enabled: false,
                 store_dir: None,
                 domain: None,
+                max_memory: None,
+                max_storage: None,
             },
             leafnodes: LeafNodeConfig::default(),
             accounts: vec![
@@ -57,6 +59,7 @@ async fn test_basic_setup_with_accounts() -> Result<(), Box<dyn std::error::Erro
                 },
             ],
             output_dir: PathBuf::from("test-output"),
+            tls: None,
         }],
     };
 
@@ -92,6 +95,8 @@ async fn test_temp_setup_with_accounts() -> Result<(), Box<dyn std::error::Error
                 enabled: true,
                 store_dir: Some("ignored/jetstream".to_string()),
                 domain: Some("core".to_string()),
+                max_memory: Some(1024 * 1024 * 1024), // 1GB
+                max_storage: Some(10 * 1024 * 1024 * 1024), // 10GB
             },
             leafnodes: LeafNodeConfig::default(),
             accounts: vec![
@@ -122,6 +127,7 @@ async fn test_temp_setup_with_accounts() -> Result<(), Box<dyn std::error::Error
                 },
             ],
             output_dir: PathBuf::from("ignored"),
+            tls: None,
         }],
     };
 
