@@ -188,8 +188,8 @@ pub async fn create_account(account: &AccountConfig, operator_name: &str, store_
 pub async fn create_user(
     account: &AccountConfig,
     user: &UserConfig,
-    output_dir: &PathBuf,
-    store_dir: &PathBuf,
+    output_dir: &Path,
+    store_dir: &Path,
 ) -> Result<PathBuf> {
     let store_path = store_dir.to_str().unwrap();
     let creds_path = output_dir.join(format!("{}-{}.creds", account.name, user.name));
