@@ -98,12 +98,7 @@ impl NatsForge {
                 let account_jwt = if account.name == "SYS" && account.is_system_account {
                     default_sys_jwt.clone()
                 } else {
-                    create_account(
-                        account,
-                        &self.config.operator.name,
-                        &self.store_dir.path().to_path_buf(),
-                    )
-                    .await?
+                    create_account(account, &self.config.operator.name, self.store_dir.path()).await?
                 };
                 let account_jwt_path = server.output_dir.join(format!("{}.jwt", account.name));
                 std::fs::write(&account_jwt_path, &account_jwt)?;
@@ -111,8 +106,7 @@ impl NatsForge {
                 account_jwts.insert(account.name.clone(), account_jwt);
 
                 for user in &account.users {
-                    let creds_path =
-                        create_user(account, user, &server.output_dir, self.store_dir.path()).await?;
+                    let creds_path = create_user(account, user, &server.output_dir, self.store_dir.path()).await?;
                     let filename = creds_path.file_name().unwrap().to_string_lossy().to_string();
                     creds_map.insert(filename.clone(), (creds_path.clone(), server.output_dir.clone()));
                     user_creds_paths.push(creds_path);
