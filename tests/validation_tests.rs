@@ -29,7 +29,8 @@ async fn test_setup_validation() -> anyhow::Result<()> {
 
     // Verify port is available
     if tokio::net::TcpListener::bind(("0.0.0.0", validation_port))
-        .await.is_err()
+        .await
+        .is_err()
     {
         return Err(anyhow::anyhow!("Port {} is still in use", validation_port));
     }
