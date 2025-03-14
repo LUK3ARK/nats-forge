@@ -1,11 +1,12 @@
 use std::path::PathBuf;
+use std::collections::HashMap;
 
 use anyhow::Context;
 use futures_util::StreamExt;
 use natsforge::{
     config::{
         AccountConfig, ExportConfig, JetStreamConfig, LeafNodeConfig, NatsConfig, OperatorConfig, ServerConfig,
-        UserConfig,
+        UserConfig, SubjectTransform, RepublishConfig,
     },
     NatsForge,
 };
@@ -49,7 +50,9 @@ async fn test_setup_validation() -> anyhow::Result<()> {
                 store_dir: Some("test-output-validation/jetstream".to_string()),
                 domain: Some("test".to_string()),
                 max_memory: None,
-                    max_storage: None,
+                max_storage: None,
+                subject_transform: None,
+                republish: vec![],
             },
             leafnodes: LeafNodeConfig::default(),
             accounts: vec![AccountConfig {
@@ -69,9 +72,11 @@ async fn test_setup_validation() -> anyhow::Result<()> {
                     is_service: false,
                 }],
                 imports: vec![],
+                mappings: HashMap::new(),
             }],
             output_dir: PathBuf::from("test-output-validation"),
             tls: None,
+            mappings: HashMap::new(),
         }],
     };
 
@@ -292,9 +297,6 @@ async fn test_hub_leaf_validation() -> anyhow::Result<()> {
         .ok_or_else(|| anyhow::anyhow!("No message received"))?;
 
     assert_eq!(msg.payload, "Hello from leaf");
-
-    // TODO: Add TLS testing once implemented
-    // todo!("Test TLS configuration when added to NatsForge");
 
     std::fs::remove_dir_all("hub-output")?;
     std::fs::remove_dir_all("leaf-output")?;

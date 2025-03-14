@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -23,6 +23,8 @@ pub struct ServerConfig {
     pub output_dir: PathBuf,
     #[serde(default)]
     pub tls: Option<TlsConfig>,
+    #[serde(default)]
+    pub mappings: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,6 +43,22 @@ pub struct JetStreamConfig {
     pub max_memory: Option<i64>, // Bytes
     #[serde(default)]
     pub max_storage: Option<i64>, // Bytes
+    #[serde(default)]
+    pub subject_transform: Option<SubjectTransform>,
+    #[serde(default)]
+    pub republish: Vec<RepublishConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubjectTransform {
+    pub src: String,
+    pub dest: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RepublishConfig {
+    pub src: String,
+    pub dest: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -82,6 +100,8 @@ pub struct AccountConfig {
     pub exports: Vec<ExportConfig>,
     #[serde(default)]
     pub imports: Vec<ImportConfig>,
+    #[serde(default)]
+    pub mappings: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,6 +126,10 @@ pub struct ExportConfig {
 pub struct ImportConfig {
     pub subject: String,
     pub account: String,
+    #[serde(default)]
+    pub local_subject: Option<String>,
+    #[serde(default)]
+    pub service: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

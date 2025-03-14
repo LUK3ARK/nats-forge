@@ -1,10 +1,11 @@
 use std::path::PathBuf;
+use std::collections::HashMap;
 
 use anyhow::Result;
 use natsforge::{
     config::{
         AccountConfig, ExportConfig, JetStreamConfig, LeafNodeConfig, NatsConfig, OperatorConfig, ServerConfig,
-        UserConfig,
+        UserConfig, SubjectTransform, RepublishConfig,
     },
     NatsForge,
 };
@@ -26,6 +27,8 @@ async fn test_basic_setup_with_accounts() -> Result<(), Box<dyn std::error::Erro
                 domain: None,
                 max_memory: None,
                 max_storage: None,
+                subject_transform: None,
+                republish: vec![],
             },
             leafnodes: LeafNodeConfig::default(),
             accounts: vec![
@@ -38,6 +41,7 @@ async fn test_basic_setup_with_accounts() -> Result<(), Box<dyn std::error::Erro
                     max_payload: None,
                     exports: vec![],
                     imports: vec![],
+                    mappings: HashMap::new(),
                 },
                 AccountConfig {
                     name: "APP".to_string(),
@@ -56,10 +60,12 @@ async fn test_basic_setup_with_accounts() -> Result<(), Box<dyn std::error::Erro
                         is_service: false,
                     }],
                     imports: vec![],
+                    mappings: HashMap::new(),
                 },
             ],
             output_dir: PathBuf::from("test-output"),
             tls: None,
+            mappings: HashMap::new(),
         }],
     };
 
@@ -97,6 +103,8 @@ async fn test_temp_setup_with_accounts() -> Result<(), Box<dyn std::error::Error
                 domain: Some("core".to_string()),
                 max_memory: Some(1024 * 1024 * 1024), // 1GB
                 max_storage: Some(10 * 1024 * 1024 * 1024), // 10GB
+                subject_transform: None,
+                republish: vec![],
             },
             leafnodes: LeafNodeConfig::default(),
             accounts: vec![
@@ -109,6 +117,7 @@ async fn test_temp_setup_with_accounts() -> Result<(), Box<dyn std::error::Error
                     max_payload: None,
                     exports: vec![],
                     imports: vec![],
+                    mappings: HashMap::new(),
                 },
                 AccountConfig {
                     name: "APP".to_string(),
@@ -124,10 +133,12 @@ async fn test_temp_setup_with_accounts() -> Result<(), Box<dyn std::error::Error
                     max_payload: Some(2097152),
                     exports: vec![],
                     imports: vec![],
+                    mappings: HashMap::new(),
                 },
             ],
             output_dir: PathBuf::from("ignored"),
             tls: None,
+            mappings: HashMap::new(),
         }],
     };
 

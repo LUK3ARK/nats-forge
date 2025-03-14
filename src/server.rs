@@ -23,6 +23,22 @@ pub fn generate_server_config(
         if let Some(max_store) = server.jetstream.max_storage {
             config.push_str(&format!("    max_file_store: {}\n", max_store));
         }
+        if let Some(transform) = &server.jetstream.subject_transform {
+            config.push_str(&format!(
+                "    subject_transform {{ src: \"{}\", dest: \"{}\" }}\n",
+                transform.src, transform.dest
+            ));
+        }
+        if !server.jetstream.republish.is_empty() {
+            config.push_str("    republish = [\n");
+            for repub in &server.jetstream.republish {
+                config.push_str(&format!(
+                    "        {{ src: \"{}\", dest: \"{}\" }},\n",
+                    repub.src, repub.dest
+                ));
+            }
+            config.push_str("    ]\n");
+        }
         config.push_str("}\n\n");
     }
     if let Some(tls) = &server.tls {
@@ -32,6 +48,13 @@ pub fn generate_server_config(
         ));
         if let Some(ca_file) = &tls.ca_file {
             config.push_str(&format!("    ca_file: \"{}\"\n", ca_file));
+        }
+        config.push_str("}\n\n");
+    }
+    if !server.mappings.is_empty() {
+        config.push_str("mappings: {\n");
+        for (src, dest) in &server.mappings {
+            config.push_str(&format!("    \"{}\": \"{}\",\n", src, dest));
         }
         config.push_str("}\n\n");
     }

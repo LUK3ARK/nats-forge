@@ -120,12 +120,13 @@ pub async fn create_account(account: &AccountConfig, operator_name: &str, store_
         }
     }
 
-    for export in &account.exports {
+    for (i, export) in account.exports.iter().enumerate() {
+        let export_name = format!("export-{}", i);
         let mut export_args = vec![
             "add".to_string(),
             "export".to_string(),
             "--name".to_string(),
-            export.subject.clone(),
+            export_name,
             "--subject".to_string(),
             export.subject.clone(),
             "--account".to_string(),
@@ -142,35 +143,11 @@ pub async fn create_account(account: &AccountConfig, operator_name: &str, store_
             .await
             .context(format!("Failed to add export {}", export.subject))?;
         if !export_output.status.success() {
+            println!("nsc add export stdout: {}", String::from_utf8_lossy(&export_output.stdout));
+            println!("nsc add export stderr: {}", String::from_utf8_lossy(&export_output.stderr));
             return Err(anyhow::anyhow!(
                 "nsc add export failed: {}",
                 String::from_utf8_lossy(&export_output.stderr)
-            ));
-        }
-    }
-
-    for import in &account.imports {
-        let import_args = vec![
-            "add".to_string(),
-            "import".to_string(),
-            "--src-account".to_string(),
-            import.account.clone(),
-            "--subject".to_string(),
-            import.subject.clone(),
-            "--account".to_string(),
-            account.unique_name.clone(),
-            "--data-dir".to_string(),
-            store_path.to_string(),
-        ];
-        let import_output = Command::new("nsc")
-            .args(&import_args)
-            .output()
-            .await
-            .context(format!("Failed to add import {}", import.subject))?;
-        if !import_output.status.success() {
-            return Err(anyhow::anyhow!(
-                "nsc add import failed: {}",
-                String::from_utf8_lossy(&import_output.stderr)
             ));
         }
     }
@@ -191,8 +168,8 @@ pub async fn create_user(
     output_dir: &Path,
     store_dir: &Path,
 ) -> Result<PathBuf> {
-    let store_path = store_dir.to_str().unwrap();
-    let creds_path = output_dir.join(format!("{}-{}.creds", account.name, user.name));
+    let creds_filename = format!("{}-{}.creds", account.name, user.name);
+    let creds_path = output_dir.join(&creds_filename);
 
     let account_name = if account.name == "SYS" && account.is_system_account {
         "SYS".to_string()
@@ -200,25 +177,25 @@ pub async fn create_user(
         account.unique_name.clone()
     };
 
-    let mut args = vec![
+    let mut add_args = vec![
         "add".to_string(),
         "user".to_string(),
-        "--name".to_string(),
-        user.name.clone(),
         "--account".to_string(),
         account_name.clone(),
+        "--name".to_string(),
+        user.name.clone(),
         "--data-dir".to_string(),
-        store_path.to_string(),
+        store_dir.to_str().unwrap().to_string(),
     ];
 
     if !user.allowed_subjects.is_empty() {
-        args.push("--allow-pubsub".to_string());
-        args.push(user.allowed_subjects.join(","));
+        add_args.push("--allow-pubsub".to_string());
+        add_args.push(user.allowed_subjects.join(","));
     }
 
     if !user.denied_subjects.is_empty() {
-        args.push("--deny-pubsub".to_string());
-        args.push(user.denied_subjects.join(","));
+        add_args.push("--deny-pubsub".to_string());
+        add_args.push(user.denied_subjects.join(","));
     }
 
     if let Some(expiry) = &user.expiry {
@@ -227,47 +204,92 @@ pub async fn create_user(
         } else {
             expiry.clone()
         };
-        args.push("--expiry".to_string());
-        args.push(nsc_expiry);
+        add_args.push("--expiry".to_string());
+        add_args.push(nsc_expiry);
     }
 
-    let output = Command::new("nsc")
-        .args(&args)
+    println!("Running nsc add user command: {:?}", add_args);
+    let add_output = Command::new("nsc")
+        .args(&add_args)
         .output()
         .await
         .context(format!("Failed to run nsc add user {}", user.name))?;
 
-    if !output.status.success() {
+    if !add_output.status.success() {
+        println!("nsc add user stdout: {}", String::from_utf8_lossy(&add_output.stdout));
+        println!("nsc add user stderr: {}", String::from_utf8_lossy(&add_output.stderr));
         return Err(anyhow::anyhow!(
             "nsc add user failed: {}",
-            String::from_utf8_lossy(&output.stderr)
+            String::from_utf8_lossy(&add_output.stderr)
         ));
     }
 
-    let _ = std::fs::remove_file(&creds_path);
-    let output = Command::new("nsc")
-        .args(&[
-            "generate".to_string(),
-            "creds".to_string(),
-            "--account".to_string(),
-            account_name,
-            "--name".to_string(),
-            user.name.clone(),
-            "--output-file".to_string(),
-            creds_path.to_str().unwrap().to_string(),
-            "--data-dir".to_string(),
-            store_path.to_string(),
-        ])
-        .output()
-        .await
-        .context(format!("Failed to generate creds for user {}", user.name))?;
+    if creds_path.exists() {
+        println!("Removing existing creds file: {}", creds_path.display());
+        std::fs::remove_file(&creds_path)?;
+    }
 
-    if !output.status.success() {
+    let generate_args = vec![
+        "generate".to_string(),
+        "creds".to_string(),
+        "--account".to_string(),
+        account_name.clone(),
+        "--name".to_string(),
+        user.name.clone(),
+        "--output-file".to_string(),
+        creds_path.to_str().unwrap().to_string(),
+        "--data-dir".to_string(),
+        store_dir.to_str().unwrap().to_string(),
+    ];
+
+    println!("Running nsc generate creds command: {:?}", generate_args);
+    let generate_output = Command::new("nsc")
+        .args(&generate_args)
+        .output()
+        .await?;
+
+    if !generate_output.status.success() {
+        println!("nsc generate creds stdout: {}", String::from_utf8_lossy(&generate_output.stdout));
+        println!("nsc generate creds stderr: {}", String::from_utf8_lossy(&generate_output.stderr));
         return Err(anyhow::anyhow!(
             "nsc generate creds failed: {}",
-            String::from_utf8_lossy(&output.stderr)
+            String::from_utf8_lossy(&generate_output.stderr)
         ));
     }
+
+    let creds_content = std::fs::read_to_string(&creds_path)?;
+    let jwt = creds_content
+        .lines()
+        .skip_while(|line| !line.contains("-----BEGIN NATS USER JWT-----"))
+        .take_while(|line| !line.contains("------END NATS USER JWT------"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let seed = creds_content
+        .lines()
+        .skip_while(|line| !line.contains("-----BEGIN USER NKEY SEED-----"))
+        .take_while(|line| !line.contains("------END USER NKEY SEED------"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let formatted_creds = format!(
+        "-----BEGIN NATS USER JWT-----\n\
+        {}\n\
+        ------END NATS USER JWT------\n\
+        \n\
+        ************************* IMPORTANT *************************\n\
+        NKEY Seed printed below can be used to sign and prove identity.\n\
+        NKEYs are sensitive and should be treated as secrets.\n\
+        \n\
+        -----BEGIN USER NKEY SEED-----\n\
+        {}\n\
+        ------END USER NKEY SEED------\n\
+        \n\
+        *************************************************************\n",
+        jwt.trim(),
+        seed.trim()
+    );
+
+    std::fs::write(&creds_path, &formatted_creds)?;
 
     Ok(creds_path)
 }

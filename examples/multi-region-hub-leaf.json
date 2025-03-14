@@ -1,0 +1,107 @@
+{
+  "name": "multi-region-hub-leaf",
+  "operator": {
+    "name": "global-operator",
+    "reuse_existing": false
+  },
+  "servers": [
+    {
+      "name": "us-hub",
+      "port": 4222,
+      "jetstream": {
+        "enabled": true,
+        "store_dir": "us-hub-output/jetstream",
+        "domain": "us"
+      },
+      "leafnodes": {
+        "port": 4248
+      },
+      "accounts": [
+        {
+          "name": "SYS",
+          "users": [{ "name": "admin" }],
+          "is_system_account": true,
+          "unique_name": "SYS",
+          "exports": []
+        },
+        {
+          "name": "global-service",
+          "users": [{ "name": "hub-user" }],
+          "exports": [
+            { "subject": "global.>", "is_service": false },
+            { "subject": "region.us.>", "is_service": false }
+          ]
+        }
+      ],
+      "output_dir": "us-hub-output"
+    },
+    {
+      "name": "eu-hub",
+      "port": 4223,
+      "jetstream": {
+        "enabled": true,
+        "store_dir": "eu-hub-output/jetstream",
+        "domain": "eu"
+      },
+      "leafnodes": {
+        "port": 4249
+      },
+      "accounts": [
+        {
+          "name": "SYS",
+          "users": [{ "name": "admin" }],
+          "is_system_account": true,
+          "unique_name": "SYS",
+          "exports": []
+        },
+        {
+          "name": "global-service",
+          "users": [{ "name": "hub-user" }],
+          "exports": [
+            { "subject": "global.>", "is_service": false },
+            { "subject": "region.eu.>", "is_service": false }
+          ]
+        }
+      ],
+      "output_dir": "eu-hub-output"
+    },
+    {
+      "name": "us-leaf-1",
+      "port": 4224,
+      "jetstream": {
+        "enabled": true,
+        "store_dir": "us-leaf-1-output/jetstream",
+        "domain": "us-edge"
+      },
+      "leafnodes": {
+        "remotes": [
+          {
+            "url": "nats://localhost:4248",
+            "account": "global-service",
+            "credentials": "global-service-hub-user.creds"
+          }
+        ]
+      },
+      "output_dir": "us-leaf-1-output"
+    },
+    {
+      "name": "eu-leaf-1",
+      "port": 4225,
+      "jetstream": {
+        "enabled": true,
+        "store_dir": "eu-leaf-1-output/jetstream",
+        "domain": "eu-edge"
+      },
+      "leafnodes": {
+        "remotes": [
+          {
+            "url": "nats://localhost:4249",
+            "account": "global-service",
+            "credentials": "global-service-hub-user.creds"
+          }
+        ]
+      },
+      "output_dir": "eu-leaf-1-output"
+    }
+  ]
+}

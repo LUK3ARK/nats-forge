@@ -1,0 +1,50 @@
+{
+  "name": "microservices-mesh",
+  "operator": {
+    "name": "services-operator",
+    "reuse_existing": false
+  },
+  "servers": [
+    {
+      "name": "gateway",
+      "port": 4222,
+      "jetstream": {
+        "enabled": true,
+        "store_dir": "gateway-output/jetstream",
+        "domain": "gateway"
+      },
+      "accounts": [
+        {
+          "name": "SYS",
+          "users": [{ "name": "admin" }],
+          "is_system_account": true,
+          "unique_name": "SYS"
+        },
+        {
+          "name": "auth-service",
+          "users": [{ "name": "auth-user" }],
+          "exports": [
+            { "subject": "auth.validate", "is_service": true },
+            { "subject": "auth.events.>", "is_service": false }
+          ]
+        },
+        {
+          "name": "user-service",
+          "users": [{ "name": "user-api" }],
+          "exports": [{ "subject": "users.api.>", "is_service": true }],
+          "imports": [{ "subject": "auth.validate", "account": "auth-service" }]
+        },
+        {
+          "name": "notification-service",
+          "users": [{ "name": "notifier" }],
+          "exports": [{ "subject": "notifications.send", "is_service": true }],
+          "imports": [
+            { "subject": "auth.events.>", "account": "auth-service" },
+            { "subject": "users.api.events", "account": "user-service" }
+          ]
+        }
+      ],
+      "output_dir": "gateway-output"
+    }
+  ]
+}
