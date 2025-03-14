@@ -1,13 +1,15 @@
-use std::collections::{HashMap, HashSet};
-use crate::config::AccountConfig;
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+};
+
 use anyhow::{Context, Result};
 use tempfile::TempDir;
-use uuid::Uuid;
-use std::path::PathBuf;
 use tokio::process::Command;
+use uuid::Uuid;
 
 use crate::{
-    config::{NatsConfig, SetupResult},
+    config::{AccountConfig, NatsConfig, SetupResult},
     nsc::{create_account, create_operator, create_user, extract_account_id},
     server::generate_server_config,
 };
@@ -76,7 +78,9 @@ impl NatsForge {
         std::fs::create_dir_all(operator_jwt_path.parent().unwrap())?;
         std::fs::write(&operator_jwt_path, &operator_jwt)?;
 
-        let default_sys_jwt_path = self.store_dir.path()
+        let default_sys_jwt_path = self
+            .store_dir
+            .path()
             .join(&self.config.operator.name)
             .join("accounts")
             .join("SYS")
@@ -105,16 +109,23 @@ impl NatsForge {
             let account_unique_name = &account.unique_name;
             dependencies.entry(account_unique_name.clone()).or_default();
             for import in &account.imports {
-                let src_unique_name = name_to_unique.get(&import.account)
+                let src_unique_name = name_to_unique
+                    .get(&import.account)
                     .ok_or_else(|| anyhow::anyhow!("Unknown import account: {}", import.account))?;
-                dependencies.entry(src_unique_name.clone()).or_default().insert(account_unique_name.clone());
+                dependencies
+                    .entry(src_unique_name.clone())
+                    .or_default()
+                    .insert(account_unique_name.clone());
             }
         }
 
         let sorted_accounts = topological_sort(&dependencies)?;
 
         for account_unique_name in &sorted_accounts {
-            if let Some((server_idx, _, account)) = all_accounts.iter().find(|(_, _, a)| a.unique_name == *account_unique_name) {
+            if let Some((server_idx, _, account)) = all_accounts
+                .iter()
+                .find(|(_, _, a)| a.unique_name == *account_unique_name)
+            {
                 let server = &self.config.servers[*server_idx];
                 let abs_output_dir = std::fs::canonicalize(&server.output_dir)?;
                 std::fs::create_dir_all(&abs_output_dir)?;
@@ -132,7 +143,10 @@ impl NatsForge {
                 for user in &account.users {
                     let creds_path = create_user(account, user, &abs_output_dir, self.store_dir.path()).await?;
                     let filename = creds_path.file_name().unwrap().to_string_lossy().to_string();
-                    creds_map.entry(filename.clone()).or_insert_with(Vec::new).push((creds_path.clone(), server.output_dir.clone()));
+                    creds_map
+                        .entry(filename.clone())
+                        .or_insert_with(Vec::new)
+                        .push((creds_path.clone(), server.output_dir.clone()));
                     user_creds_paths.push(creds_path);
                 }
             }
@@ -141,15 +155,22 @@ impl NatsForge {
         for (_, _, account) in &all_accounts {
             for (i, import) in account.imports.iter().enumerate() {
                 let import_name = format!("import-{}", i);
-                let src_unique_name = name_to_unique.get(&import.account)
+                let src_unique_name = name_to_unique
+                    .get(&import.account)
                     .ok_or_else(|| anyhow::anyhow!("Unknown import account: {}", import.account))?;
                 let mut import_args = vec![
-                    "add".to_string(), "import".to_string(),
-                    "--name".to_string(), import_name,
-                    "--src-account".to_string(), src_unique_name.clone(),
-                    "--remote-subject".to_string(), import.subject.clone(),
-                    "--account".to_string(), account.unique_name.clone(),
-                    "--data-dir".to_string(), self.store_dir.path().to_str().unwrap().to_string(),
+                    "add".to_string(),
+                    "import".to_string(),
+                    "--name".to_string(),
+                    import_name,
+                    "--src-account".to_string(),
+                    src_unique_name.clone(),
+                    "--remote-subject".to_string(),
+                    import.subject.clone(),
+                    "--account".to_string(),
+                    account.unique_name.clone(),
+                    "--data-dir".to_string(),
+                    self.store_dir.path().to_str().unwrap().to_string(),
                 ];
                 if let Some(local_subject) = &import.local_subject {
                     import_args.push("--local-subject".to_string());
@@ -158,10 +179,16 @@ impl NatsForge {
                 if import.service {
                     import_args.push("--service".to_string());
                 }
-                let import_output = Command::new("nsc").args(&import_args).output().await
+                let import_output = Command::new("nsc")
+                    .args(&import_args)
+                    .output()
+                    .await
                     .context(format!("Failed to add import {}", import.subject))?;
                 if !import_output.status.success() {
-                    return Err(anyhow::anyhow!("nsc add import failed: {}", String::from_utf8_lossy(&import_output.stderr)));
+                    return Err(anyhow::anyhow!(
+                        "nsc add import failed: {}",
+                        String::from_utf8_lossy(&import_output.stderr)
+                    ));
                 }
             }
         }
@@ -170,7 +197,9 @@ impl NatsForge {
             let abs_output_dir = std::fs::canonicalize(&server.output_dir)?;
             for remote in &server.leafnodes.remotes {
                 if let Some(creds_entries) = creds_map.get(&remote.credentials) {
-                    let (source_path, _) = creds_entries.iter().find(|(path, _)| path.exists())
+                    let (source_path, _) = creds_entries
+                        .iter()
+                        .find(|(path, _)| path.exists())
                         .ok_or_else(|| anyhow::anyhow!("No existing creds file for {}", remote.credentials))?;
 
                     let source_content = std::fs::read_to_string(source_path)?;

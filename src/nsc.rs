@@ -227,10 +227,7 @@ pub async fn create_user(
         store_dir.to_str().unwrap().to_string(),
     ];
 
-    let generate_output = Command::new("nsc")
-        .args(&generate_args)
-        .output()
-        .await?;
+    let generate_output = Command::new("nsc").args(&generate_args).output().await?;
 
     if !generate_output.status.success() {
         return Err(anyhow::anyhow!(
@@ -254,19 +251,10 @@ pub async fn create_user(
         .join("\n");
 
     let formatted_creds = format!(
-        "-----BEGIN NATS USER JWT-----\n\
-        {}\n\
-        ------END NATS USER JWT------\n\
-        \n\
-        ************************* IMPORTANT *************************\n\
-        NKEY Seed printed below can be used to sign and prove identity.\n\
-        NKEYs are sensitive and should be treated as secrets.\n\
-        \n\
-        -----BEGIN USER NKEY SEED-----\n\
-        {}\n\
-        ------END USER NKEY SEED------\n\
-        \n\
-        *************************************************************\n",
+        "-----BEGIN NATS USER JWT-----\n{}\n------END NATS USER JWT------\n\n************************* IMPORTANT \
+         *************************\nNKEY Seed printed below can be used to sign and prove identity.\nNKEYs are \
+         sensitive and should be treated as secrets.\n\n-----BEGIN USER NKEY SEED-----\n{}\n------END USER NKEY \
+         SEED------\n\n*************************************************************\n",
         jwt.trim(),
         seed.trim()
     );

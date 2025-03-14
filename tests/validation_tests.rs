@@ -1,12 +1,11 @@
-use std::path::PathBuf;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context;
 use futures_util::StreamExt;
 use natsforge::{
     config::{
-        AccountConfig, ExportConfig, JetStreamConfig, LeafNodeConfig, NatsConfig, OperatorConfig, ServerConfig,
-        UserConfig, SubjectTransform, RepublishConfig,
+        AccountConfig, ExportConfig, JetStreamConfig, LeafNodeConfig, NatsConfig, OperatorConfig, RepublishConfig,
+        ServerConfig, SubjectTransform, UserConfig,
     },
     NatsForge,
 };
@@ -201,7 +200,9 @@ async fn test_hub_leaf_validation() -> anyhow::Result<()> {
         let mut reader = tokio::io::BufReader::new(hub_stderr);
         let mut line = String::new();
         while let Ok(n) = reader.read_line(&mut line).await {
-            if n == 0 { break; }
+            if n == 0 {
+                break;
+            }
             println!("Hub stderr: {}", line.trim());
             line.clear();
         }
@@ -223,7 +224,9 @@ async fn test_hub_leaf_validation() -> anyhow::Result<()> {
         let mut reader = tokio::io::BufReader::new(leaf_stderr);
         let mut line = String::new();
         while let Ok(n) = reader.read_line(&mut line).await {
-            if n == 0 { break; }
+            if n == 0 {
+                break;
+            }
             println!("Leaf stderr: {}", line.trim());
             line.clear();
         }
@@ -253,7 +256,11 @@ async fn test_hub_leaf_validation() -> anyhow::Result<()> {
             Err(e) => {
                 retry_count += 1;
                 if retry_count >= max_retries {
-                    return Err(anyhow::anyhow!("Failed to connect to leaf after {} retries: {}", max_retries, e));
+                    return Err(anyhow::anyhow!(
+                        "Failed to connect to leaf after {} retries: {}",
+                        max_retries,
+                        e
+                    ));
                 }
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
@@ -271,24 +278,31 @@ async fn test_hub_leaf_validation() -> anyhow::Result<()> {
             Err(e) => {
                 retry_count += 1;
                 if retry_count >= max_retries {
-                    return Err(anyhow::anyhow!("Failed to connect to hub after {} retries: {}", max_retries, e));
+                    return Err(anyhow::anyhow!(
+                        "Failed to connect to hub after {} retries: {}",
+                        max_retries,
+                        e
+                    ));
                 }
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
         }
     };
 
-    let mut sub = hub_client.subscribe("events.test")
+    let mut sub = hub_client
+        .subscribe("events.test")
         .await
         .map_err(|e| anyhow::anyhow!("Failed to subscribe: {}", e))?;
 
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
-    leaf_client.publish("events.test", "Hello from leaf".into())
+    leaf_client
+        .publish("events.test", "Hello from leaf".into())
         .await
         .map_err(|e| anyhow::anyhow!("Failed to publish: {}", e))?;
 
-    leaf_client.flush()
+    leaf_client
+        .flush()
         .await
         .map_err(|e| anyhow::anyhow!("Failed to flush: {}", e))?;
 

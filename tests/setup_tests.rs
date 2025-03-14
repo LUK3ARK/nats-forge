@@ -1,11 +1,10 @@
-use std::path::PathBuf;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Result;
 use natsforge::{
     config::{
-        AccountConfig, ExportConfig, JetStreamConfig, LeafNodeConfig, NatsConfig, OperatorConfig, ServerConfig,
-        UserConfig, SubjectTransform, RepublishConfig,
+        AccountConfig, ExportConfig, JetStreamConfig, LeafNodeConfig, NatsConfig, OperatorConfig, RepublishConfig,
+        ServerConfig, SubjectTransform, UserConfig,
     },
     NatsForge,
 };
@@ -101,7 +100,7 @@ async fn test_temp_setup_with_accounts() -> Result<(), Box<dyn std::error::Error
                 enabled: true,
                 store_dir: Some("ignored/jetstream".to_string()),
                 domain: Some("core".to_string()),
-                max_memory: Some(1024 * 1024 * 1024), // 1GB
+                max_memory: Some(1024 * 1024 * 1024),       // 1GB
                 max_storage: Some(10 * 1024 * 1024 * 1024), // 10GB
                 subject_transform: None,
                 republish: vec![],
