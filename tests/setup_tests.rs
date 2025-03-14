@@ -186,8 +186,8 @@ async fn test_hub_leaf_json_config() -> Result<(), Box<dyn std::error::Error>> {
     assert!(leaf_config.contains("url: \"nats://localhost:4248\""));
 
     // Check for credentials path with or without directory prefix
-    let has_credentials = leaf_config.contains("credentials: \"app-service-service-user.creds\"") ||
-                         leaf_config.contains("credentials: \"leaf-output/app-service-service-user.creds\"");
+    let has_credentials = leaf_config.contains("credentials: \"app-service-service-user.creds\"")
+        || leaf_config.contains("credentials: \"leaf-output/app-service-service-user.creds\"");
     assert!(has_credentials, "Credentials path not found in expected format");
 
     // Verify account ID format

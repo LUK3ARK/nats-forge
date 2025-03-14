@@ -1,4 +1,4 @@
-use tokio::io::AsyncBufReadExt;use std::path::PathBuf;
+use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use futures_util::StreamExt;
@@ -9,7 +9,7 @@ use natsforge::{
     },
     NatsForge,
 };
-use tokio;
+use tokio::{self, io::AsyncBufReadExt};
 
 use crate::common::ServerGuard;
 
@@ -28,7 +28,10 @@ async fn test_setup_validation() -> anyhow::Result<()> {
         .await;
 
     // Verify port is available
-    if !tokio::net::TcpListener::bind(("0.0.0.0", validation_port)).await.is_ok() {
+    if !tokio::net::TcpListener::bind(("0.0.0.0", validation_port))
+        .await
+        .is_ok()
+    {
         return Err(anyhow::anyhow!("Port {} is still in use", validation_port));
     }
 
@@ -47,26 +50,24 @@ async fn test_setup_validation() -> anyhow::Result<()> {
                 domain: Some("test".to_string()),
             },
             leafnodes: LeafNodeConfig::default(),
-            accounts: vec![
-                AccountConfig {
-                    name: "APP".to_string(),
-                    unique_name: "APP".to_string(),
-                    users: vec![UserConfig {
-                        name: "app-user".to_string(),
-                        allowed_subjects: vec!["test.>".to_string()],
-                        denied_subjects: vec!["forbidden.>".to_string()],
-                        expiry: Some("2025-12-31T23:59:59Z".to_string()),
-                    }],
-                    is_system_account: false,
-                    max_connections: Some(1),
-                    max_payload: Some(1024),
-                    exports: vec![ExportConfig {
-                        subject: "test.data".to_string(),
-                        is_service: false,
-                    }],
-                    imports: vec![],
-                },
-            ],
+            accounts: vec![AccountConfig {
+                name: "APP".to_string(),
+                unique_name: "APP".to_string(),
+                users: vec![UserConfig {
+                    name: "app-user".to_string(),
+                    allowed_subjects: vec!["test.>".to_string()],
+                    denied_subjects: vec!["forbidden.>".to_string()],
+                    expiry: Some("2025-12-31T23:59:59Z".to_string()),
+                }],
+                is_system_account: false,
+                max_connections: Some(1),
+                max_payload: Some(1024),
+                exports: vec![ExportConfig {
+                    subject: "test.data".to_string(),
+                    is_service: false,
+                }],
+                imports: vec![],
+            }],
             output_dir: PathBuf::from("test-output-validation"),
         }],
     };
@@ -187,7 +188,9 @@ async fn test_hub_leaf_validation() -> anyhow::Result<()> {
             let mut reader = tokio::io::BufReader::new(stderr);
             let mut line = String::new();
             while let Ok(n) = reader.read_line(&mut line).await {
-                if n == 0 { break; }
+                if n == 0 {
+                    break;
+                }
                 println!("Hub stderr: {}", line.trim());
                 line.clear();
             }
@@ -210,7 +213,9 @@ async fn test_hub_leaf_validation() -> anyhow::Result<()> {
             let mut reader = tokio::io::BufReader::new(stderr);
             let mut line = String::new();
             while let Ok(n) = reader.read_line(&mut line).await {
-                if n == 0 { break; }
+                if n == 0 {
+                    break;
+                }
                 println!("Leaf stderr: {}", line.trim());
                 line.clear();
             }
@@ -241,7 +246,11 @@ async fn test_hub_leaf_validation() -> anyhow::Result<()> {
             Err(e) => {
                 retry_count += 1;
                 if retry_count >= max_retries {
-                    return Err(anyhow::anyhow!("Failed to connect to leaf after {} retries: {}", max_retries, e));
+                    return Err(anyhow::anyhow!(
+                        "Failed to connect to leaf after {} retries: {}",
+                        max_retries,
+                        e
+                    ));
                 }
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
@@ -259,25 +268,32 @@ async fn test_hub_leaf_validation() -> anyhow::Result<()> {
             Err(e) => {
                 retry_count += 1;
                 if retry_count >= max_retries {
-                    return Err(anyhow::anyhow!("Failed to connect to hub after {} retries: {}", max_retries, e));
+                    return Err(anyhow::anyhow!(
+                        "Failed to connect to hub after {} retries: {}",
+                        max_retries,
+                        e
+                    ));
                 }
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
         }
     };
 
-    let mut sub = hub_client.subscribe("events.test")
+    let mut sub = hub_client
+        .subscribe("events.test")
         .await
         .map_err(|e| anyhow::anyhow!("Failed to subscribe: {}", e))?;
 
     // Give leafnode time to propagate subscription
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
-    leaf_client.publish("events.test", "Hello from leaf".into())
+    leaf_client
+        .publish("events.test", "Hello from leaf".into())
         .await
         .map_err(|e| anyhow::anyhow!("Failed to publish: {}", e))?;
 
-    leaf_client.flush()
+    leaf_client
+        .flush()
         .await
         .map_err(|e| anyhow::anyhow!("Failed to flush: {}", e))?;
 
